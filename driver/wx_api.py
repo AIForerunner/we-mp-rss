@@ -386,12 +386,16 @@ class WeChatAPI:
                     self._handle_login_success()
                 elif status == 'waiting':
                     # 继续等待
-                    Timer(2.0, check_login).start()
+                    timer = Timer(2.0, check_login)
+                    timer.daemon = True  # 设置为守护线程，避免内存泄漏
+                    timer.start()
                 elif status == 'scanned':
                     # 已扫描，等待确认
                     if self.notice_callback:
                         self.notice_callback('已扫描，请在手机上确认登录')
-                    Timer(2.0, check_login).start()
+                    timer = Timer(2.0, check_login)
+                    timer.daemon = True  # 设置为守护线程，避免内存泄漏
+                    timer.start()
                 elif status == 'expired':
                     # 二维码过期
                     if self.notice_callback:
@@ -401,7 +405,9 @@ class WeChatAPI:
                     return
                 else:
                     # 继续检查
-                    Timer(2.0, check_login).start()
+                    timer = Timer(2.0, check_login)
+                    timer.daemon = True  # 设置为守护线程，避免内存泄漏
+                    timer.start()
                     
             except Exception as e:
                 logger.error(f"检查登录状态失败: {str(e)}")
@@ -411,7 +417,9 @@ class WeChatAPI:
             finally:
                 self.release_lock()
         # 启动检查
-        Timer(2.0, check_login).start()
+        timer = Timer(2.0, check_login)
+        timer.daemon = True  # 设置为守护线程，避免内存泄漏
+        timer.start()
 
     def _check_login_status(self, uuid: str) -> str:
         """

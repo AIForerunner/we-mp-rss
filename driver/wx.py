@@ -227,7 +227,7 @@ class Wx:
             self.refresh_task()
             # 使用守护线程避免资源泄露
             timer = Timer(self.refresh_interval, self.schedule_refresh)
-            timer.daemon = True
+            timer.daemon = True  # 设置为守护线程，避免内存泄漏
             timer.start()
         except Exception as e:
             print_error(f"定时刷新任务失败: {str(e)}")
