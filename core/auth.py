@@ -139,8 +139,9 @@ def get_user(username: str) -> Optional[dict]:
             user_data, cached_time = data
             return user_data
 
-    session = DB.get_session()
+    session = None
     try:
+        session = DB.get_session()
         user = session.query(DBUser).filter(DBUser.username == username).first()
         if user:
             # 转换为字典并存入缓存（带时间戳）
@@ -156,7 +157,8 @@ def get_user(username: str) -> Optional[dict]:
         print_error(f"获取用户错误: {str(e)}")
         return None
     finally:
-        session.remove()
+        if session is not None:
+            session.close()
 
 def get_user_by_id(user_id: str) -> Optional[dict]:
     """从数据库通过用户ID获取用户，带缓存功能"""
@@ -171,8 +173,9 @@ def get_user_by_id(user_id: str) -> Optional[dict]:
             user_data, cached_time = data
             return user_data
 
-    session = DB.get_session()
+    session = None
     try:
+        session = DB.get_session()
         user = session.query(DBUser).filter(DBUser.id == user_id).first()
         if user:
             # 转换为字典并存入缓存（带时间戳）
@@ -188,7 +191,8 @@ def get_user_by_id(user_id: str) -> Optional[dict]:
         print_error(f"通过ID获取用户错误: {str(e)}")
         return None
     finally:
-        session.remove()
+        if session is not None:
+            session.close()
 
 from apis.base import error_response
 def authenticate_user(username: str, password: str) -> Optional[DBUser]:
@@ -299,8 +303,9 @@ def create_ak(
     """
     from uuid import uuid4
     
-    session = DB.get_session()
+    session = None
     try:
+        session = DB.get_session()
         access_key, secret_key = generate_access_key()
         hashed_secret = hash_secret_key(secret_key)
         
@@ -337,7 +342,8 @@ def create_ak(
             "expires_at": ak.expires_at.isoformat() if ak.expires_at else None
         }
     except Exception as e:
-        session.rollback()
+        if session:
+            session.rollback()
         from core.print import print_error
         print_error(f"创建Access Key错误: {str(e)}")
         raise HTTPException(
@@ -345,13 +351,15 @@ def create_ak(
             detail="创建Access Key失败"
         )
     finally:
-        session.remove()
+        if session is not None:
+            session.close()
 
 
 def get_ak_by_key(access_key: str) -> Optional[AccessKey]:
     """通过 AK 值获取 AK 记录"""
-    session = DB.get_session()
+    session = None
     try:
+        session = DB.get_session()
         ak = session.query(AccessKey).filter(
             AccessKey.key == access_key,
             AccessKey.is_active == True
@@ -362,7 +370,8 @@ def get_ak_by_key(access_key: str) -> Optional[AccessKey]:
         print_error(f"获取Access Key错误: {str(e)}")
         return None
     finally:
-        session.remove()
+        if session is not None:
+            session.close()
 
 
 def authenticate_ak(access_key: str, secret_key: str) -> Optional[dict]:
@@ -390,16 +399,19 @@ def authenticate_ak(access_key: str, secret_key: str) -> Optional[dict]:
         return None
     
     # 更新最后使用时间
-    session = DB.get_session()
+    session = None
     try:
+        session = DB.get_session()
         ak_record = session.query(AccessKey).filter(AccessKey.id == ak.id).first()
         if ak_record:
             ak_record.last_used_at = datetime.utcnow()
             session.commit()
     except:
-        session.rollback()
+        if session:
+            session.rollback()
     finally:
-        session.remove()
+        if session is not None:
+            session.close()
     
     # 解析权限
     try:
@@ -482,8 +494,9 @@ async def get_current_user_or_ak(request: Request, token: str = Depends(oauth2_s
 
 def list_user_aks(user_id: str) -> list:
     """获取用户的所有 Access Keys"""
-    session = DB.get_session()
+    session = None
     try:
+        session = DB.get_session()
         aks = session.query(AccessKey).filter(
             AccessKey.user_id == user_id
         ).all()
@@ -516,13 +529,15 @@ def list_user_aks(user_id: str) -> list:
         print_error(f"获取用户Access Keys错误: {str(e)}")
         return []
     finally:
-        session.remove()
+        if session is not None:
+            session.close()
 
 
 def deactivate_ak(ak_id: str) -> bool:
     """停用 Access Key"""
-    session = DB.get_session()
+    session = None
     try:
+        session = DB.get_session()
         ak = session.query(AccessKey).filter(AccessKey.id == ak_id).first()
         if ak:
             ak.is_active = False
@@ -530,18 +545,21 @@ def deactivate_ak(ak_id: str) -> bool:
             return True
         return False
     except Exception as e:
-        session.rollback()
+        if session:
+            session.rollback()
         from core.print import print_error
         print_error(f"停用Access Key错误: {str(e)}")
         return False
     finally:
-        session.remove()
+        if session is not None:
+            session.close()
 
 
 def delete_ak(ak_id: str) -> bool:
     """删除 Access Key"""
-    session = DB.get_session()
+    session = None
     try:
+        session = DB.get_session()
         ak = session.query(AccessKey).filter(AccessKey.id == ak_id).first()
         if ak:
             session.delete(ak)
@@ -549,18 +567,21 @@ def delete_ak(ak_id: str) -> bool:
             return True
         return False
     except Exception as e:
-        session.rollback()
+        if session:
+            session.rollback()
         from core.print import print_error
         print_error(f"删除Access Key错误: {str(e)}")
         return False
     finally:
-        session.remove()
+        if session is not None:
+            session.close()
 
 
 def update_ak(ak_id: str, **kwargs) -> bool:
     """更新 Access Key 信息"""
-    session = DB.get_session()
+    session = None
     try:
+        session = DB.get_session()
         ak = session.query(AccessKey).filter(AccessKey.id == ak_id).first()
         if not ak:
             return False
@@ -577,12 +598,14 @@ def update_ak(ak_id: str, **kwargs) -> bool:
         session.commit()
         return True
     except Exception as e:
-        session.rollback()
+        if session:
+            session.rollback()
         from core.print import print_error
         print_error(f"更新Access Key错误: {str(e)}")
         return False
     finally:
-        session.remove()
+        if session is not None:
+            session.close()
 
 
 def authenticate_cascade_node(api_key: str, secret_key: str) -> Optional[dict]:
@@ -596,8 +619,9 @@ def authenticate_cascade_node(api_key: str, secret_key: str) -> Optional[dict]:
     返回: 级联节点信息字典或 None
     """
     from core.print import print_info, print_error
-    session = DB.get_session()
+    session = None
     try:
+        session = DB.get_session()
         secret_hash = hashlib.sha256(secret_key.encode()).hexdigest()
         
         print_info(f"[级联认证] AK: {api_key}")
@@ -639,4 +663,5 @@ def authenticate_cascade_node(api_key: str, secret_key: str) -> Optional[dict]:
         traceback.print_exc()
         return None
     finally:
-        session.remove()
+        if session is not None:
+            session.close()

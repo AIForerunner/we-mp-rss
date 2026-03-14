@@ -7,6 +7,7 @@ import json
 import random
 import uuid
 import asyncio
+import threading
 from socket import timeout
 from urllib.parse import urlparse, unquote
 
@@ -22,9 +23,14 @@ from playwright.sync_api import sync_playwright
 from playwright.async_api import async_playwright
 
 class PlaywrightController:
+    # 类级别的锁和共享资源，确保多线程环境下只有一个playwright实例
+    _global_lock = threading.Lock()
+    _shared_driver = None
+    _driver_ref_count = 0
+
     def __init__(self):
         self.system = platform.system().lower()
-        self.driver = None
+        self.driver = None  # 指向全局共享的 playwright driver
         self.browser = None
         self.context = None
         self.page = None
@@ -93,7 +99,6 @@ class PlaywrightController:
                 self.page is not None)
     def start_browser(self, headless=True, mobile_mode=False, dis_image=True, browser_name=browsers_name, language="zh-CN", anti_crawler=True, proxy_url=""):
         try:
-            # 使用线程锁确保线程安全
             if  str(os.getenv("NOT_HEADLESS",False))=="True":
                 headless = False
             else:
@@ -101,12 +106,19 @@ class PlaywrightController:
 
             if self.system != "windows":
                 headless = True
-            if self.driver is None:
-                if sys.platform == "win32" :
-                    # 设置事件循环策略为WindowsSelectorEventLoopPolicy
-                    # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-                    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-                self.driver = sync_playwright().start()
+            
+            # 使用全局锁确保线程安全地初始化共享的 playwright driver
+            with PlaywrightController._global_lock:
+                if PlaywrightController._shared_driver is None:
+                    if sys.platform == "win32" :
+                        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+                    PlaywrightController._shared_driver = sync_playwright().start()
+                    PlaywrightController._driver_ref_count = 0
+                    print("Playwright driver 已全局初始化")
+                
+                PlaywrightController._driver_ref_count += 1
+            
+            self.driver = PlaywrightController._shared_driver
         
             # 根据浏览器名称选择浏览器类型
             if browser_name.lower() == "firefox":
@@ -355,20 +367,40 @@ class PlaywrightController:
         self.cleanup()
 
     def cleanup(self):
-        """清理所有资源"""
-        try:
-            # 使用线程锁确保线程安全
-            if hasattr(self, 'page') and self.page:
-                self.page.close()
-            if hasattr(self, 'context') and self.context:
-                self.context.close()
-            if hasattr(self, 'browser') and self.browser:
-                self.browser.close()
-            if hasattr(self, 'driver') and self.driver:
-                self.driver.stop()
-            self.isClose = True
-        except Exception as e:
-            print(f"资源清理失败: {str(e)}")
+        """清理所有资源 - 每个步骤独立捕获异常"""
+        errors = []
+        # 先清理实例级别的资源
+        for name, obj in [('page', self.page), ('context', self.context), 
+                           ('browser', self.browser)]:
+            if obj:
+                try:
+                    obj.close()
+                except Exception as e:
+                    errors.append(f"{name}: {e}")
+        
+        self.page = None
+        self.context = None
+        self.browser = None
+        self.isClose = True
+        
+        # 使用全局锁管理共享 driver 的生命周期
+        with PlaywrightController._global_lock:
+            if PlaywrightController._driver_ref_count > 0:
+                PlaywrightController._driver_ref_count -= 1
+            
+            # 只有当引用计数归零时才真正停止 driver
+            if PlaywrightController._driver_ref_count == 0 and PlaywrightController._shared_driver is not None:
+                try:
+                    PlaywrightController._shared_driver.stop()
+                    print("Playwright driver 已全局停止")
+                except Exception as e:
+                    errors.append(f"driver: {e}")
+                finally:
+                    PlaywrightController._shared_driver = None
+        
+        self.driver = None
+        if errors:
+            print(f"资源清理部分失败: {errors}")
 
     def dict_to_json(self, data_dict):
         try:
