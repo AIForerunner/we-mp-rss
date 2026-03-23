@@ -15,6 +15,7 @@ from core.lax.template_parser import TemplateParser
 from views.config import base
 from driver.wxarticle import Web
 from core.cache import cache_view, clear_cache_pattern, data_cache
+from sqlalchemy.orm import defer
 
 
 
@@ -78,9 +79,12 @@ async def articles_view(
         else:  # created_at
             order_clause = Article.created_at.desc() if order == "desc" else Article.created_at.asc()
         
-        # 主查询：一次性获取文章和Feed信息
+        # 主查询：一次性获取文章和Feed信息（排除大字段 content 和 content_html）
         query = session.query(Article, Feed).join(
             Feed, Article.mp_id == Feed.id, isouter=True
+        ).options(
+            defer(Article.content),      # type: ignore
+            defer(Article.content_html)  # type: ignore
         ).filter(and_(*base_conditions)).order_by(order_clause)
         
         # 获取总数

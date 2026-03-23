@@ -15,6 +15,7 @@ from core.lax.template_parser import TemplateParser
 from views.config import base
 from driver.wxarticle import Web
 from core.cache import cache_view, clear_cache_pattern, data_cache
+from sqlalchemy.orm import defer
 # 创建路由器
 router = APIRouter(tags=["文章详情"])
 @router.get("/article/{article_id}", response_class=HTMLResponse, summary="文章详情页")
@@ -45,21 +46,24 @@ async def article_detail_view(
             article.is_read = 1
             session.commit()
         
-        # 获取相关文章（同公众号的其他文章）
-        related_articles = session.query(Article).filter(
+        # 获取相关文章（同公众号的其他文章，排除大字段）
+        related_articles = session.query(Article).options(
+            defer(Article.content),      # type: ignore
+            defer(Article.content_html)  # type: ignore
+        ).filter(
             Article.mp_id == article.mp_id,
             Article.id != article_id,
             Article.status == 1
         ).order_by(Article.publish_time.desc()).limit(5).all()
         
-        # 获取上一个和下一个文章ID
-        prev_article = session.query(Article.id,Article.title).filter(
+        # 获取上一个和下一个文章ID（排除大字段）
+        prev_article = session.query(Article.id, Article.title).filter(
             Article.mp_id == article.mp_id,
             Article.publish_time < article.publish_time,
             Article.status == 1
         ).order_by(Article.publish_time.desc()).first()
         
-        next_article = session.query(Article.id,Article.title).filter(
+        next_article = session.query(Article.id, Article.title).filter(
             Article.mp_id == article.mp_id,
             Article.publish_time > article.publish_time,
             Article.status == 1
