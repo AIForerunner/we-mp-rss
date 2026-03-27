@@ -19,6 +19,7 @@ const submitting = ref(false)
 const isEdit = computed(() => !!route.params.id)
 const showMpSelector = ref(false)
 const mpSelectorRef = ref<InstanceType<typeof MpMultiSelect> | null>(null)
+const modalVisible = ref(true)
 
 // 表单数据
 const formData = ref<{
@@ -165,26 +166,28 @@ onMounted(async () => {
 </script>
 
 <template>
-  <a-spin :loading="loading">
-    <div class="filter-rule-form">
-      <a-page-header
-        :title="isEdit ? '编辑过滤规则' : '添加过滤规则'"
-        subtitle="配置HTML内容过滤规则"
-        @back="handleCancel"
-      />
-
-      <a-card :loading="loading">
+  <a-modal
+    v-model:visible="modalVisible"
+    :title="isEdit ? '编辑过滤规则' : '添加过滤规则'"
+    :width="800"
+    :footer="false"
+    :unmount-on-close="true"
+    class="filter-rule-modal"
+    @cancel="handleCancel"
+  >
+    <a-spin :loading="loading">
+      <div class="filter-rule-form">
         <a-form :model="formData" layout="vertical" @submit-success="handleSubmit">
           <a-form-item label="选择公众号" field="mps_id">
-            <a-space>
+            <div class="mp-selector-row">
               <a-input
                 :model-value="(formData.mps_id||[]).map((mp: any) => mp.id?.toString() || mp.toString()).join(',')"
                 placeholder="不选择则对所有公众号生效"
                 readonly
-                style="width: 300px"
+                class="mp-input"
               />
-              <a-button @click="showMpSelector = true">选择</a-button>
-            </a-space>
+              <a-button type="primary" @click="showMpSelector = true">选择</a-button>
+            </div>
             <template #extra>
               <span class="form-tip">可选择多个公众号，不选择则作为全局规则对所有公众号生效</span>
             </template>
@@ -239,10 +242,10 @@ onMounted(async () => {
           <a-form-item label="属性过滤">
             <div class="attribute-list">
               <div v-for="(attr, index) in formData.remove_attributes" :key="index" class="attribute-row">
-                <a-input v-model="attr.name" placeholder="属性名" style="width: 120px" />
-                <a-input v-model="attr.value" placeholder="属性值(可选)" style="flex: 1" />
-                <a-checkbox v-model="attr.eq">精确匹配</a-checkbox>
-                <a-button type="text" status="danger" @click="removeAttributeRow(index)">
+                <a-input v-model="attr.name" placeholder="属性名" class="attr-name-input" />
+                <a-input v-model="attr.value" placeholder="属性值(可选)" class="attr-value-input" />
+                <a-checkbox v-model="attr.eq" class="attr-checkbox">精确匹配</a-checkbox>
+                <a-button type="text" status="danger" @click="removeAttributeRow(index)" class="attr-delete-btn">
                   <template #icon><icon-delete /></template>
                 </a-button>
               </div>
@@ -283,36 +286,62 @@ onMounted(async () => {
             </a-space>
           </a-form-item>
         </a-form>
-      </a-card>
+      </div>
+    </a-spin>
 
-      <!-- 公众号选择器模态框 -->
-      <a-modal
-        v-model:visible="showMpSelector"
-        title="选择公众号"
-        :footer="false"
-        width="800px"
-      >
-        <MpMultiSelect
-          ref="mpSelectorRef"
-          v-model="formData.mps_id"
-        />
-        <template #footer>
-          <a-button type="primary" @click="showMpSelector = false">确定</a-button>
-        </template>
-      </a-modal>
-    </div>
-  </a-spin>
+    <!-- 公众号选择器模态框 -->
+    <a-modal
+      v-model:visible="showMpSelector"
+      title="选择公众号"
+      :footer="false"
+      width="800px"
+      class="mp-selector-modal"
+      :unmount-on-close="true"
+    >
+      <MpMultiSelect
+        ref="mpSelectorRef"
+        v-model="formData.mps_id"
+      />
+      <template #footer>
+        <a-button type="primary" @click="showMpSelector = false">确定</a-button>
+      </template>
+    </a-modal>
+  </a-modal>
 </template>
 
 <style scoped>
 .filter-rule-form {
-  padding: 16px;
-  margin: 0 auto;
+  width: 100%;
+  display: block;
+}
+
+.filter-rule-form :deep(.arco-spin) {
+  width: 100%;
+  display: block;
+}
+
+.filter-rule-form :deep(.arco-form) {
+  width: 100%;
+}
+
+.filter-rule-form :deep(.arco-form-item) {
+  width: 100%;
 }
 
 .form-tip {
   color: var(--color-text-3);
   font-size: 12px;
+}
+
+.mp-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mp-input {
+  flex: 1;
+  min-width: 0;
 }
 
 .attribute-list {
@@ -327,17 +356,133 @@ onMounted(async () => {
   gap: 8px;
 }
 
+.attr-name-input {
+  width: 140px;
+  flex-shrink: 0;
+}
+
+.attr-value-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.attr-checkbox {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.attr-delete-btn {
+  flex-shrink: 0;
+}
+
+/* 移动端适配 */
 @media (max-width: 768px) {
-  .filter-rule-form {
-    padding: 12px;
+  .mp-selector-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mp-selector-row .arco-btn {
+    width: 100%;
   }
 
   .attribute-row {
     flex-wrap: wrap;
+    gap: 8px;
   }
 
-  .attribute-row .arco-input {
-    width: 100% !important;
+  .attr-name-input {
+    width: 100%;
+  }
+
+  .attr-value-input {
+    width: 100%;
+  }
+
+  .attr-checkbox {
+    order: 3;
+    margin-left: 0;
+  }
+
+  .attr-delete-btn {
+    order: 4;
+    margin-left: auto;
+  }
+
+  /* 属性行在移动端的重新排列 */
+  .attribute-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .attr-name-input {
+    grid-column: 1;
+  }
+
+  .attr-value-input {
+    grid-column: 2;
+  }
+
+  .attr-checkbox {
+    grid-column: 1;
+  }
+
+  .attr-delete-btn {
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  /* 按钮组在移动端垂直排列 */
+  :deep(.arco-form-item:last-child .arco-space) {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  :deep(.arco-form-item:last-child .arco-space .arco-space-item) {
+    width: 100%;
+  }
+
+  :deep(.arco-form-item:last-child .arco-btn) {
+    width: 100%;
+  }
+}
+</style>
+<style>
+/* 模态框样式 */
+.filter-rule-modal .arco-modal-body {
+  padding: 16px 20px;
+}
+
+.filter-rule-modal .arco-modal-body > .arco-spin,
+.filter-rule-modal .arco-modal-body > .arco-spin > .filter-rule-form {
+  width: 100%;
+}
+
+/* 模态框移动端适配 */
+@media (max-width: 768px) {
+  .filter-rule-modal .arco-modal {
+    width: 95% !important;
+    max-width: 95% !important;
+    margin: 20px auto;
+  }
+
+  .filter-rule-modal .arco-modal-body {
+    padding: 12px;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  .mp-selector-modal .arco-modal {
+    width: 95% !important;
+    max-width: 95% !important;
+    margin: 20px auto;
+  }
+
+  .mp-selector-modal .arco-modal-body {
+    padding: 12px;
+    max-height: 60vh;
+    overflow-y: auto;
   }
 }
 </style>
