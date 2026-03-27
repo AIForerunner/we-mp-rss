@@ -27,8 +27,9 @@ const hasMore = ref(true)
 const pageSize = 20
 
 const filteredMps = computed(() => {
-  return mpList.value.filter(mp => 
-    !selectedMps.value.some(selected => selected.id === mp.id)
+  return mpList.value.filter(mp =>
+    !selectedMps.value.some(selected => selected.id === mp.id) &&
+    mp.mp_name !== '精选文章'
   )
 })
 
