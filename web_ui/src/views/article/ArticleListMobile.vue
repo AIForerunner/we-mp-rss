@@ -15,12 +15,15 @@
           </template>
         </a-page-header>
 
-        <a-card style="border:0">
+        <a-card style="border:0; width: 100%;">
           <div class="search-bar">
             <a-input-search v-model="searchText" placeholder="搜索文章标题" @search="handleSearch" @keyup.enter="handleSearch" allow-clear />
           </div>
 
-          <a-list :data="articles" :loading="loading" bordered>
+          <a-list :data="articles" :loading="loading" bordered style="width: 100%;">
+            <template #empty>
+              <a-empty description="暂无文章" />
+            </template>
             <template #item="{ item }">
               <a-list-item>
                 <a-list-item-meta>
@@ -493,6 +496,7 @@ onMounted(() => {
 <style scoped>
 .article-list {
   height: 100%;
+  width: 100%;
 }
 
 .search-bar {
@@ -566,11 +570,52 @@ a-button {
   margin-bottom: 16px;
 }
 .arco-list-wrapper{
-  width: 100%;
+  width: 100% !important;
+  min-width: 100% !important;
+}
+
+:deep(.arco-list-wrapper) {
+  width: 100% !important;
+  min-width: 100% !important;
+}
+
+:deep(.arco-list) {
+  width: 100% !important;
+  min-width: 100% !important;
+}
+
+:deep(.arco-card) {
+  width: 100% !important;
+}
+
+:deep(.arco-card-body) {
+  width: 100% !important;
 }
 
 .mp-list-container .arco-list-wrapper {
   width: 100%;
+}
+
+/* 空状态时也要100%宽 */
+:deep(.arco-list-item-content) {
+  width: 100%;
+}
+
+:deep(.arco-empty) {
+  width: 100%;
+}
+
+/* 空状态容器 */
+:deep(.arco-list-container) {
+  width: 100% !important;
+}
+
+:deep(.arco-spin-nested-loading) {
+  width: 100% !important;
+}
+
+:deep(.arco-spin-container) {
+  width: 100% !important;
 }
 
 .article-title-container {
