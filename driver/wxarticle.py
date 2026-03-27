@@ -504,7 +504,8 @@ class WXArticleFetcher:
             return html_content
         return htmltools.clean_html(str(html_content).strip(),
                                 remove_ids=
-                                ['content_bottom_interaction',
+                                [
+                                 'content_bottom_interaction',
                                  'activity-name',
                                  'meta_content',
                                  "js_article_bottom_bar",
@@ -512,11 +513,6 @@ class WXArticleFetcher:
                                  "js_top_ad_area",
                                  "js_novel_card",
                                  "js_pc_qr_code"
-                                 ],
-                                   remove_selectors=[
-                                     "link",
-                                     "head",
-                                     "script"
                                  ],
                                  )
         # return htmltools.clean_html(str(html_content).strip(),
