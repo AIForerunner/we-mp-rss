@@ -74,6 +74,10 @@ A tool for subscribing to and managing WeChat Official Account content, providin
 - HTML content filtering rules (global rules and MP-specific rules)
 - Multi-theme support (13 themes: Default Purple, Blue, Green, Orange, Rose, Teal, Pink, Indigo, Violet, Coffee, Navy, Dark Mode, Sepia)
 - Responsive pagination (PC: click navigation, Mobile: load more button)
+- **Cascade System**: Parent-child node architecture with intelligent task distribution for scaling collection capabilities
+- **Environment Exception Statistics**: Automatic tracking and statistics of environment exceptions when accessing WeChat articles
+- **Headers and Cookies Authentication**: Support custom headers and cookies in message tasks for authenticated webhook calls
+- **Configuration Cache**: Support Redis, Memcached, and memory caching for improved configuration read performance
 
 
 # ❤️ Sponsorship
