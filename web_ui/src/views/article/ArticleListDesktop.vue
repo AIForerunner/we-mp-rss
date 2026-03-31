@@ -386,6 +386,7 @@ const publishTypeColorMap: Record<number, string> = {
 // 列配置选项
 const allColumnOptions = [
   { key: 'is_read', label: '已阅', required: true },
+  { key: 'pic_url', label: '题图', required: false },
   { key: 'title', label: '文章标题', required: true },
   { key: 'mp_id', label: '公众号', required: false },
   { key: 'copyright_stat', label: '原创', required: false },
@@ -397,7 +398,7 @@ const allColumnOptions = [
 ]
 
 // 默认显示的列
-const defaultVisibleColumns = ['is_read', 'title', 'mp_id', 'created_at', 'publish_time', 'actions']
+const defaultVisibleColumns = ['is_read', 'pic_url', 'title', 'mp_id', 'created_at', 'publish_time', 'actions']
 
 // 从 localStorage 读取列配置
 const getStoredColumns = (): string[] => {
@@ -454,6 +455,26 @@ const columns = computed(() => {
             style: { fontSize: '12px' }
           }, isRead ? '已读' : '未读')
         ]);
+      }
+    },
+    {
+      title: '题图',
+      dataIndex: 'pic_url',
+      width: 80,
+      align: 'center',
+      render: ({ record }) => {
+        if (!record.pic_url) return h('span', { style: { color: 'var(--color-text-4)' } }, '-')
+        return h('img', {
+          src: record.pic_url,
+          style: {
+            width: '60px',
+            height: '40px',
+            objectFit: 'cover',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          },
+          onClick: () => viewArticle(record)
+        })
       }
     },
     {
