@@ -173,6 +173,7 @@
             </a-dropdown>
           </div>
           <a-table :columns="columns" :data="articles" :loading="loading" :pagination="pagination"
+            :scroll="{ x: '100%' }"
             :row-selection="{
             type: 'checkbox',
             showCheckedAll: true,
@@ -344,11 +345,11 @@ const copyrightTextMap: Record<number, string> = {
 
 const copyrightColorMap: Record<number, string> = {
   0: 'gray',
-  1: 'arcoblue',
-  11: 'arcoblue',
-  12: 'arcoblue',
-  13: 'arcoblue',
-  14: 'arcoblue'
+  1: 'green',
+  11: 'purple',
+  12: 'orange',
+  13: 'red',
+  14: 'cyan'
 }
 
 // 展示类型映射
@@ -436,24 +437,25 @@ const columns = computed(() => {
     {
       title: '已阅',
       dataIndex: 'is_read',
-      width: 80,
+      width: 60,
       render: ({ record }) => {
         const isRead = record.is_read === 1;
         return h('div', {
           style: {
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'center',
             cursor: 'pointer',
-            color: isRead ? 'var(--color-success)' : 'var(--color-text-3)'
+            color: isRead ? '#52c41a' : 'var(--color-text-3)'
           },
           onClick: () => toggleReadStatus(record)
         }, [
           h(isRead ? IconCheck : IconClose, {
-            style: { marginRight: '4px' }
+            style: { marginRight: '2px' }
           }),
           h('span', {
             style: { fontSize: '12px' }
-          }, isRead ? '已读' : '未读')
+          }, isRead ? '已阅' : '未读')
         ]);
       }
     },
@@ -520,7 +522,7 @@ const columns = computed(() => {
       render: ({ record }) => {
         const stat = record.copyright_stat ?? 0
         return h('a-tag', {
-          color: copyrightColorMap[stat] || 'gray',
+          color: copyrightColorMap[stat] ,
           size: 'small'
         }, copyrightTextMap[stat] || '未知')
       }
@@ -575,6 +577,7 @@ const columns = computed(() => {
       dataIndex: 'actions',
       width: 140,
       align: 'center',
+      fixed: 'right',
       slotName: 'actions'
     }
   ]
