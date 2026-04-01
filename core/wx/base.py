@@ -10,7 +10,7 @@ from core.models.feed import Feed
 from .cfg import cfg,wx_cfg
 from core.print import print_error,print_info, print_warning, print_success
 from core.rss import RSS
-from driver.success import setStatus
+from driver.success import setStatus,CanGetToken
 from driver.wxarticle import Web
 from core.wait import Wait
 import random
@@ -73,11 +73,13 @@ class WxGather:
         self.start_time = None  # 记录开始时间
         session=  requests.Session()
         timeout = (5, 10)  
-        session.timeout = timeout
+        session.timeout = timeout # type: ignore
         self.session=session
         self.get_token()
     def get_token(self):
         cfg.reload()
+        if not CanGetToken():
+             raise Exception("正在获取token...")
         from driver.token import get as get_token_val
         self.Gather_Content=cfg.get('gather.content',False)
         self.cookies = get_token_val('cookie', '')
@@ -304,11 +306,11 @@ class WxGather:
         if code=="Invalid Session":
             from jobs.failauth import send_wx_code
             import threading
-            setStatus(False)
             from core.queue import TaskQueue
             TaskQueue.clear_queue()
             import os
             if str(os.getenv('WE_RSS.AUTH',False))!="True" and cfg.get("server.send_code")=="True":
+                setStatus(False)
                 threading.Thread(target=send_wx_code,args=(f"公众号平台登录失效,请重新登录",)).start()
             # send_wx_code(f"公众号平台登录失效,请重新登录")
             raise Exception(error)

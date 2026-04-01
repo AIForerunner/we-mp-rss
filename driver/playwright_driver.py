@@ -138,7 +138,26 @@ class PlaywrightController:
             print(f"启动浏览器: {browser_name}, 无头模式: {headless}, 移动模式: {mobile_mode}, 反爬虫: {anti_crawler}")
             # 设置启动选项
             launch_options = {
-                "headless": headless
+                "headless": headless,
+                # 禁用用户特征收集
+                "args": [
+                    "--disable-blink-features=AutomationControlled",  # 禁用自动化检测
+                    "--disable-features=IsolateOrigins,site-per-process",  # 禁用站点隔离
+                    "--disable-web-security",  # 禁用同源策略（可选）
+                    "--disable-webrtc",  # 禁用 WebRTC（防止真实 IP 泄露）
+                    "--disable-extensions",  # 禁用扩展
+                    "--disable-plugins",  # 禁用插件
+                    "--disable-images",  # 禁用图片加载（可选，加速）
+                    "--disable-background-networking",  # 禁用后台网络
+                    "--disable-sync",  # 禁用同步
+                    "--metrics-recording-only",  # 禁用指标记录
+                    "--no-first-run",  # 跳过首次运行
+                    "--disable-default-apps",  # 禁用默认应用
+                    "--no-default-browser-check",  # 跳过默认浏览器检查
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu", # 可选：禁用GPU以统一渲染特征
+                ]
             }
 
             proxy_options = self._build_proxy_options(proxy_url)
@@ -163,7 +182,7 @@ class PlaywrightController:
             if anti_crawler:
                 context_options.update(self._get_anti_crawler_config(mobile_mode))
             
-            self.context = self.browser.new_context(**context_options)
+            self.context = self.browser.new_context(**context_options) #type: ignore
             self.page = self.context.new_page()
             
             if mobile_mode:
@@ -231,6 +250,10 @@ class PlaywrightController:
                 "height": random.randint(800, 1080) if not mobile_mode else 812,
                 "device_scale_factor": random.choice([1, 1.25, 1.5, 2])
             },
+            # 禁用用户特征
+            "java_script_enabled": True,
+            "ignore_https_errors": True,
+            "bypass_csp": True,  # 绕过 CSP 限制
             "extra_http_headers": {
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
                 "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
@@ -240,8 +263,14 @@ class PlaywrightController:
                 "Sec-Fetch-Dest": "document",
                 "Sec-Fetch-Mode": "navigate",
                 "Sec-Fetch-Site": "none",
-                "Sec-Fetch-User": "?1"
-            }
+                "Sec-Fetch-User": "?1",
+                # 禁用 Client Hints（移除特征头）
+                # "Sec-CH-UA": None,  # User-Agent Client Hints
+                # "Sec-CH-UA-Mobile": None,
+                # "Sec-CH-UA-Platform": None,
+            },
+            # 禁用 WebRTC（通过权限）
+            "permissions": [],  # 不授予任何权限
         }
         
         # 移动端特殊配置
@@ -283,53 +312,151 @@ class PlaywrightController:
         return str(uuid.uuid4()).replace("-", "")
 
     def _apply_anti_crawler_scripts(self):
-        # try:
-        #     from playwright_stealth.stealth import Stealth
-        #     stealth = Stealth()
-        #     stealth.apply_stealth_sync(self.page)
-        # except ImportError:
-        #     print("检测到playwright_stealth未安装，正在自动安装...")
-        #     subprocess.check_call([sys.executable, "-m", "pip", "install", "playwright_stealth"])
-        #     from playwright_stealth.stealth import Stealth
-        #     stealth = Stealth()
-        #     stealth.apply_stealth_sync(self.page)
-        
-        """应用反爬虫脚本"""
-        # 隐藏自动化特征
+        """应用反爬虫脚本 - 禁用用户特征"""
+        # 隐藏自动化特征和禁用指纹
         self.page.add_init_script("""
-        // 隐藏webdriver属性
+        // ========== 禁用 WebDriver 检测 ==========
         Object.defineProperty(navigator, 'webdriver', {
-            get: () => false,
+            get: () => undefined,
+            configurable: true
         });
         
-        // 隐藏chrome属性
-        Object.defineProperty(window, 'chrome', {
-            get: () => false,
-        });
-        
-        // 修改plugins长度
+        // ========== 禁用 Chrome 自动化标志 ==========
         Object.defineProperty(navigator, 'plugins', {
-            get: () => [1, 2, 3, 4, 5],
+            get: () => {
+                const plugins = [
+                    { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer' },
+                    { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
+                    { name: 'Native Client', filename: 'internal-nacl-plugin' }
+                ];
+                plugins.item = (i) => plugins[i] || null;
+                plugins.namedItem = (name) => plugins.find(p => p.name === name) || null;
+                plugins.refresh = () => {};
+                return plugins;
+            }
         });
         
-        // 修改languages
         Object.defineProperty(navigator, 'languages', {
-            get: () => ['zh-CN', 'zh', 'en'],
+            get: () => ['zh-CN', 'zh', 'en-US', 'en']
         });
         
-        // 隐藏自动化痕迹
-        Object.defineProperty(navigator, 'webdriver', {
-            get: () => false,
-        });
+        // ========== 禁用 WebRTC（防止 IP 泄露）==========
+        if (window.RTCPeerConnection) {
+            window.RTCPeerConnection = undefined;
+        }
+        if (window.webkitRTCPeerConnection) {
+            window.webkitRTCPeerConnection = undefined;
+        }
         
-        // 修改permissions
+        // ========== 禁用 Canvas 指纹 ==========
+        const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+        HTMLCanvasElement.prototype.toDataURL = function(type) {
+            if (type === 'image/png' && this.width === 220 && this.height === 30) {
+                // 检测到指纹采集，返回空白
+                return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+            }
+            // 添加随机噪声
+            const context = this.getContext('2d');
+            if (context) {
+                const imageData = context.getImageData(0, 0, this.width, this.height);
+                for (let i = 0; i < imageData.data.length; i += 4) {
+                    imageData.data[i] ^= (Math.random() * 2) | 0;
+                }
+                context.putImageData(imageData, 0, 0);
+            }
+            return originalToDataURL.apply(this, arguments);
+        };
+        
+        // ========== 禁用 AudioContext 指纹 ==========
+        const audioContext = window.AudioContext || window.webkitAudioContext;
+        if (audioContext) {
+            const originalCreateAnalyser = audioContext.prototype.createAnalyser;
+            audioContext.prototype.createAnalyser = function() {
+                const analyser = originalCreateAnalyser.apply(this, arguments);
+                const originalGetFloatFrequencyData = analyser.getFloatFrequencyData;
+                analyser.getFloatFrequencyData = function(array) {
+                    // 返回随机噪声而非真实音频指纹
+                    for (let i = 0; i < array.length; i++) {
+                        array[i] = -100 + Math.random() * 50;
+                    }
+                };
+                return analyser;
+            };
+        }
+        
+        // ========== 禁用 WebGL 指纹 ==========
+        const getParameter = WebGLRenderingContext.prototype.getParameter;
+        WebGLRenderingContext.prototype.getParameter = function(parameter) {
+            if (parameter === 37445) return 'Intel Inc.';  // UNMASKED_VENDOR_WEBGL
+            if (parameter === 37446) return 'Intel Iris OpenGL Engine';  // UNMASKED_RENDERER_WEBGL
+            return getParameter.apply(this, arguments);
+        };
+        
+        if (typeof WebGL2RenderingContext !== 'undefined') {
+            const getParameter2 = WebGL2RenderingContext.prototype.getParameter;
+            WebGL2RenderingContext.prototype.getParameter = function(parameter) {
+                if (parameter === 37445) return 'Intel Inc.';
+                if (parameter === 37446) return 'Intel Iris OpenGL Engine';
+                return getParameter2.apply(this, arguments);
+            };
+        }
+        
+        // ========== 禁用字体指纹 ==========
+        const originalMeasureText = CanvasRenderingContext2D.prototype.measureText;
+        CanvasRenderingContext2D.prototype.measureText = function(text) {
+            const result = originalMeasureText.apply(this, arguments);
+            // 添加微小随机偏移
+            result.width += Math.random() * 0.1 - 0.05;
+            return result;
+        };
+        
+        // ========== 修改 permissions API ==========
         const originalQuery = window.navigator.permissions.query;
         window.navigator.permissions.query = (parameters) => (
             parameters.name === 'notifications' ?
                 Promise.resolve({ state: Notification.permission }) :
                 originalQuery(parameters)
         );
-        """)
+        
+        // ========== 禁用 Battery API ==========
+        if (navigator.getBattery) {
+            navigator.getBattery = () => Promise.resolve({
+                charging: true,
+                chargingTime: 0,
+                dischargingTime: Infinity,
+                level: 1
+            });
+        }
+        
+        // ========== 禁用 Network Information API ==========
+        if (navigator.connection) {
+            Object.defineProperty(navigator, 'connection', {
+                get: () => ({
+                    effectiveType: '4g',
+                    downlink: 10,
+                    rtt: 50,
+                    saveData: false
+                })
+            });
+        }
+        
+        // ========== 隐藏自动化框架痕迹 ==========
+        delete window.__playwright;
+        delete window.__puppeteer;
+        delete window.__selenium;
+        delete window.__webdriver_evaluate;
+        delete window.__selenium_evaluate;
+        delete window.__fxdriver_evaluate;
+        delete window.__driver_unwrapped;
+        delete window.__webdriver_unwrapped;
+        delete window.__selenium_unwrapped;
+        delete window.__fxdriver_unwrapped;
+        delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
+        delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
+        delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
+        
+        console.log('[反检测] 用户特征保护已启用');
+        """)#type: ignore
       
         # 设置更真实的浏览器行为
         self.page.evaluate("""
@@ -351,7 +478,7 @@ class PlaywrightController:
                 e.stopImmediatePropagation();
             }
         }, true);
-        """)
+        """) #type: ignore
 
        
 

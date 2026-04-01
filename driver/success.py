@@ -104,3 +104,10 @@ def Success(data:dict,ext_data:dict={}):
     else:
             print("\n登录失败，请检查上述错误信息")
             setStatus(False)
+
+def CanGetToken():
+    if getStatus() and getLockStatus()==False:
+        return True
+    else:
+        print_warning("当前登录状态无效，无法获取Token")
+        return False
