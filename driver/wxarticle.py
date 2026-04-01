@@ -451,7 +451,7 @@ class WXArticleFetcher:
                     style = img_tag['style']
                     # 使用正则表达式替换width属性
                     style = re.sub(r'width\s*:\s*\d+\s*px', 'width: 1080px', style)
-                    img_tag['style'] = style
+                    # img_tag['style'] = style
             return  js_content_div.prettify()
         except Exception as e:
             print_error(f"修复图片失败: {str(e)}")

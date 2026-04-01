@@ -30,10 +30,10 @@ db: ${DB:-sqlite:///data/db.db}
 #例如: redis://localhost:6379/0 或 redis://:password@redis.example.com:6379/1
 #留空则不使用 Redis
 redis:
-  #Redis 连接 URL
-  url: ${REDIS_URL:-}
-  #内置 Redis 服务端配置 (当使用 tools/redis_server.py 启动时)
+  url: ${REDIS_URL:-redis://:123456@127.0.0.1:6379/0}
+   #内置 Redis 服务端配置 (当使用 tools/redis_server.py 启动时)
   server:
+    enabled: ${REDIS_SERVER_ENABLED:-True}
     #监听地址
     host: ${REDIS_SERVER_HOST:-0.0.0.0}
     #监听端口
@@ -41,7 +41,7 @@ redis:
     #最大内存 (MB)
     max_memory: ${REDIS_SERVER_MAX_MEMORY:-128}
     #认证密码 (为空则不需要认证)
-    password: ${REDIS_SERVER_PASSWORD:-}
+    password: ${REDIS_SERVER_PASSWORD:-123456}
     #是否启用持久化
     persistence: ${REDIS_SERVER_PERSISTENCE:-true}
 #通知
@@ -90,8 +90,6 @@ rss:
   cdata: ${RSS_CDATA:-False}
   #RSS分页大小 默认10
   page_size: ${RSS_PAGE_SIZE:-30}
-  #单个 RSS/Atom 输出的最大条目数，防止文件体积过大
-  max_items: ${RSS_MAX_ITEMS:-30}
 
 #登录会话有效时长 单位分钟 默认4320分钟 3天
 token_expire_minutes: ${TOKEN_EXPIRE_MINUTES:-4320}
