@@ -15,7 +15,7 @@
         <template #icon>
           <icon-wechat />
         </template>
-        公众号状态
+        授权管理
       </a-menu-item>
       <a-menu-item key="/export/records">
         <template #icon>
@@ -41,7 +41,37 @@
         </template>
         过滤规则
       </a-menu-item>
-      <a-menu-item key="/configs">
+      <a-menu-item key="/task-queue">
+        <template #icon>
+          <icon-list />
+        </template>
+        任务队列
+      </a-menu-item>
+       <a-menu-item key="/cascade/feed-status">
+        <template #icon>
+          <icon-storage />
+        </template>
+        公众号状态
+      </a-menu-item>
+      <a-menu-item key="/cascade">
+        <template #icon>
+          <icon-share-external />
+        </template>
+        级联管理
+      </a-menu-item>
+      <a-menu-item key="/access-keys">
+        <template #icon>
+          <icon-lock />
+        </template>
+        Access Key
+      </a-menu-item>
+      <a-menu-item key="/env-exception">
+        <template #icon>
+          <icon-exclamation-circle />
+        </template>
+        异常统计
+      </a-menu-item>
+       <a-menu-item key="/configs">
         <template #icon>
           <icon-settings />
         </template>
@@ -53,36 +83,6 @@
         </template>
         系统信息
       </a-menu-item>
-      <a-menu-item key="/task-queue">
-        <template #icon>
-          <icon-list />
-        </template>
-        任务队列
-      </a-menu-item>
-      <a-menu-item key="/access-keys">
-        <template #icon>
-          <icon-lock />
-        </template>
-        Access Key
-      </a-menu-item>
-      <a-menu-item key="/cascade">
-        <template #icon>
-          <icon-share-external />
-        </template>
-        级联管理
-      </a-menu-item>
-      <a-menu-item key="/env-exception">
-        <template #icon>
-          <icon-exclamation-circle />
-        </template>
-        异常统计
-      </a-menu-item>
-       <!-- <a-menu-item key="/reader">
-        <template #icon>
-          <icon-read />
-            阅读器
-        </template>
-      </a-menu-item> -->
     </a-menu>
   </a-layout-header>
 </template>

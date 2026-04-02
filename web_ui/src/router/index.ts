@@ -168,6 +168,15 @@ const routes = [
         }
       },
       {
+        path: 'cascade/feed-status',
+        name: 'CascadeFeedStatus',
+        component: () => import('@/views/CascadeFeedStatus.vue'),
+        meta: { 
+          requiresAuth: true,
+          permissions: ['admin'] 
+        }
+      },
+      {
         path: 'env-exception',
         name: 'EnvExceptionStats',
         component: () => import('@/views/EnvExceptionStats.vue'),
