@@ -6,22 +6,28 @@ import { Message } from '@arco-design/web-vue'
 import { IconRefresh, IconUser } from '@arco-design/web-vue/es/icon'
 
 const feedStatusColumns = [
-  { title: '公众号', slotName: 'mp_info', ellipsis: true },
-  { title: '文章数', dataIndex: 'article_count', width: 80 },
-  { title: '更新状态', slotName: 'update_status', width: 100 },
-  { title: '最近文章', slotName: 'latest_article_time', width: 160 },
+  { title: '公众号', slotName: 'mp_info', dataIndex: 'mp_name', ellipsis: true, sortable: { sortDirections: ['ascend', 'descend'] } },
+  { title: '文章数', dataIndex: 'article_count', width: 100, sortable: { sortDirections: ['ascend', 'descend'] } },
+  { title: '更新状态', slotName: 'update_status', dataIndex: 'update_status', width: 110, sortable: { sortDirections: ['ascend', 'descend'] } },
+  { title: '最近文章', slotName: 'latest_article_time', dataIndex: 'latest_article_time', width: 160, sortable: { sortDirections: ['ascend', 'descend'] } },
   { title: '最后任务', slotName: 'last_task', width: 120 },
   { title: '执行节点', slotName: 'last_task_node', width: 120 },
-  { title: '更新时间', slotName: 'updated_at', width: 160 }
+  { title: '更新时间', slotName: 'updated_at', dataIndex: 'updated_at', width: 160, sortable: { sortDirections: ['ascend', 'descend'] } }
 ]
 
 const feedStatusList = ref<FeedStatus[]>([])
 const totalFeeds = ref(0)
 const feedStatusLoading = ref(false)
+const showTip = ref(true)
 
 const feedStatusPagination = reactive({
   limit: 12,
   offset: 0
+})
+
+const sort = reactive({
+  field: 'updated_at',
+  order: 'descend' as 'ascend' | 'descend' | ''
 })
 
 const fetchFeedStatus = async () => {
@@ -29,7 +35,9 @@ const fetchFeedStatus = async () => {
     feedStatusLoading.value = true
     const res = await getFeedStatus({
       limit: feedStatusPagination.limit,
-      offset: feedStatusPagination.offset
+      offset: feedStatusPagination.offset,
+      sort_by: sort.field,
+      sort_order: sort.order === 'ascend' ? 'asc' : sort.order === 'descend' ? 'desc' : undefined
     })
     feedStatusList.value = res?.list || []
     totalFeeds.value = res?.total || 0
@@ -43,6 +51,13 @@ const fetchFeedStatus = async () => {
 
 const handleFeedStatusPageChange = (page: number) => {
   feedStatusPagination.offset = (page - 1) * feedStatusPagination.limit
+  fetchFeedStatus()
+}
+
+const handleSorterChange = (dataIndex: string, direction: 'ascend' | 'descend' | '') => {
+  sort.field = dataIndex
+  sort.order = direction
+  feedStatusPagination.offset = 0
   fetchFeedStatus()
 }
 
@@ -101,6 +116,9 @@ const getAllocationStatusText = (status: string) => {
 }
 
 onMounted(() => {
+  setTimeout(() => {
+    showTip.value = false
+  }, 3000)
   fetchFeedStatus()
 })
 </script>
@@ -117,7 +135,9 @@ onMounted(() => {
         </a-button>
       </template>
 
-
+      <div v-if="showTip" class="tip-message">
+        显示系统中所有公众号的更新状态和任务执行情况
+      </div>
 
       <a-table
         :columns="feedStatusColumns"
@@ -131,6 +151,8 @@ onMounted(() => {
           showTotal: true,
           onChange: handleFeedStatusPageChange
         }"
+        :sorter="{ field: sort.field, order: sort.order }"
+        @sorter-change="handleSorterChange"
       >
         <template #mp_info="{ record }">
           <div style="display: flex; align-items: center; gap: 10px;">
@@ -189,5 +211,18 @@ onMounted(() => {
 <style scoped>
 .cascade-feed-status {
   padding: 20px;
+}
+.tip-message {
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  background: #e8f3ff;
+  border-radius: 4px;
+  color: #165dff;
+  font-size: 14px;
+  animation: fadeOut 0.3s ease-in-out 2.7s forwards;
+}
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 </style>
