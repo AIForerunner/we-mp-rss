@@ -98,7 +98,7 @@ def start_sync_content():
         return
     interval=int(cfg.get("gather.content_auto_interval",10)) # 每隔多少分钟
     cron_exp=f"*/{interval} * * * *"
-    TaskQueue.clear_queue()
+    # TaskQueue.clear_queue()  # 已注释：避免清空消息任务队列
     scheduler.clear_all_jobs()
     def do_sync():
         TaskQueue.add_task(fetch_articles_without_content, task_name="补抓文章内容")

@@ -203,11 +203,15 @@ import threading
 def add_job(feeds:list[Feed]=None,task:MessageTask=None,isTest=False):
     if isTest:
         TaskQueue.clear_queue()
-    
+
+    # 动态获取公众号列表：如果 feeds 为 None 且 task 不为 None，则动态获取
+    if feeds is None and task is not None:
+        feeds = get_feeds(task)
+
     # 初始化任务追踪
-    if task and not isTest:
+    if task and not isTest and feeds:
         tracker.start_task(task.id, len(feeds))
-    
+
     for feed in feeds:
         # 使用公众号名称作为任务显示名称
         TaskQueue.add_task(do_job, feed, task, isTest, task_name=feed.mp_name)
@@ -258,8 +262,9 @@ def start_job(job_id:str=None):
         if not cron_exp:
             print_error(f"任务[{task.id}]没有设置cron表达式")
             continue
-      
-        job_id=scheduler.add_cron_job(add_job,cron_expr=cron_exp,args=[get_feeds(task),task],job_id=str(task.id),tag="定时采集")
+
+        # 修改：只传递 task，在 add_job 中动态获取 feeds
+        job_id=scheduler.add_cron_job(add_job,cron_expr=cron_exp,args=[task],job_id=str(task.id),tag="定时采集")
         print(f"已添加任务: {job_id}")
     scheduler.start()
     print("启动任务")

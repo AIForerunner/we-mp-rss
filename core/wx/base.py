@@ -306,8 +306,8 @@ class WxGather:
         if code=="Invalid Session":
             from jobs.failauth import send_wx_code
             import threading
-            from core.queue import TaskQueue
-            TaskQueue.clear_queue()
+            # from core.queue import TaskQueue
+            # TaskQueue.clear_queue()  # 已注释：避免微信认证失效时清空队列
             import os
             if str(os.getenv('WE_RSS.AUTH',False))!="True" and cfg.get("server.send_code")=="True":
                 setStatus(False)
