@@ -50,5 +50,5 @@ jobs:
           push: true
         #   tags: ${{ steps.meta.outputs.tags }}
           tags: |
-            ${{ env.IMAGE_NAME }}:beta
+            ${{ env.IMAGE_NAME }}beta:${{ github.ref_name.replace('refs/tags/','') if github.ref_name.startswith('refs/tags/') else 'latest' }}
           labels: ${{ steps.meta.outputs.labels }}
