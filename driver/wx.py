@@ -7,7 +7,7 @@ from sqlalchemy import False_
 import driver
 from .playwright_driver import PlaywrightController
 from PIL import Image
-from .success import Success
+from driver.success import Success
 import time
 import os
 from driver.success import getStatus

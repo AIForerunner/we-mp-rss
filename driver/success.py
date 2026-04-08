@@ -7,7 +7,7 @@ import json
 #判断是否是有效登录 
 
 # 初始化全局变量（作为Redis不可用时的回退）
-WX_LOGIN_ED = True
+WX_LOGIN_ED = False
 WX_LOGIN_INFO = None
 
 import threading
@@ -58,7 +58,7 @@ def getStatus():
                     # 检查过期时间戳
                     elif 'expiry_timestamp' in expiry:
                         expiry_timestamp = expiry['expiry_timestamp']
-                        if expiry_timestamp and expiry_timestamp > time.time():
+                        if expiry_timestamp and expiry_timestamp <= time.time():
                             return True
                         else:
                             # token已过期，更新状态
