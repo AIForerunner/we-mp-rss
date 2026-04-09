@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/proxy", tags=["代理服务"])
 
-# 允许代理的域名白名单（可选，为了安全可以限制）
-ALLOWED_DOMAINS = None  # None 表示允许所有域名，或者设置列表如 ['mp.weixin.qq.com', 'weixin.qq.com']
+# 允许代理的域名白名单（安全加固：只允许微信公众号相关域名）
+ALLOWED_DOMAINS = ['mp.weixin.qq.com', 'weixin.qq.com', 'www.wesoso.com']
 
 # 资源处理的标签和属性映射
 RESOURCE_TAGS = {
@@ -191,24 +191,57 @@ def rewrite_css_urls(css_content: str, base_url: str) -> str:
 
 def is_domain_allowed(url: str) -> bool:
     """
-    检查域名是否在允许列表中
-    
+    检查域名是否在允许列表中（安全加固：增加协议和内网IP检查）
+
     Args:
         url: 目标URL
-        
+
     Returns:
         bool: 是否允许代理
     """
     if ALLOWED_DOMAINS is None:
-        return True
-    
+        return False  # 安全加固：默认拒绝而非允许
+
     try:
         parsed = urlparse(url)
+
+        # 1. 只允许http/https协议
+        if parsed.scheme not in ['http', 'https']:
+            logger.warning(f"拒绝非HTTP(S)协议: {parsed.scheme}")
+            return False
+
+        # 2. 禁止访问内网IP和特殊IP
+        import ipaddress
+        import socket
+
+        hostname = parsed.hostname
+        if hostname:
+            try:
+                # 尝试解析域名
+                ip_str = socket.gethostbyname(hostname)
+                ip = ipaddress.ip_address(ip_str)
+
+                # 禁止私有IP、回环IP、链路本地IP
+                if ip.is_private or ip.is_loopback or ip.is_link_local:
+                    logger.warning(f"拒绝内网IP访问: {hostname} -> {ip}")
+                    return False
+            except (socket.gaierror, ValueError):
+                # 域名解析失败或不是IP，继续检查域名白名单
+                pass
+
+        # 3. 检查域名白名单
         domain = parsed.netloc
         # 移除端口号
         domain = domain.split(':')[0]
-        return domain in ALLOWED_DOMAINS
-    except Exception:
+
+        if domain not in ALLOWED_DOMAINS:
+            logger.warning(f"域名不在白名单中: {domain}")
+            return False
+
+        return True
+
+    except Exception as e:
+        logger.error(f"域名检查异常: {str(e)}")
         return False
 
 
@@ -267,7 +300,7 @@ async def proxy_get_request(path: str, request: Request):
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(30.0),
             follow_redirects=True,
-            verify=False  # 忽略 SSL 证书验证
+            verify=True  # 安全加固：启用SSL证书验证
         ) as client:
             # 发起代理请求
             response = await client.get(
@@ -422,7 +455,7 @@ async def proxy_post_request(path: str, request: Request):
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(30.0),
             follow_redirects=True,
-            verify=False
+            verify=True  # 安全加固：启用SSL证书验证
         ) as client:
             # 发起代理请求
             response = await client.post(

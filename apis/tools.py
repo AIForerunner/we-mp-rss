@@ -153,7 +153,7 @@ async def download_export_file(
     try:
         # 定义基础目录
         base_dir = os.path.abspath("./data/docs")
-        
+
         # 构建并规范化路径
         if mp_id:
             target_path = os.path.join(base_dir, mp_id, filename)
@@ -162,17 +162,18 @@ async def download_export_file(
             # 这里为了安全起见，依然限制在 base_dir 下
              target_path = os.path.join(base_dir, filename)
 
-        # 获取绝对路径
-        safe_path = os.path.abspath(target_path)
+        # 安全加固：使用realpath解析符号链接
+        safe_path = os.path.realpath(os.path.normpath(target_path))
+        real_base = os.path.realpath(base_dir)
 
-        # 检查是否尝试跳出基础目录
-        if not safe_path.startswith(base_dir):
+        # 检查是否尝试跳出基础目录（更严格的检查）
+        if not safe_path.startswith(real_base + os.sep) and safe_path != real_base:
             return error_response(403, "非法的文件路径请求")
 
         if not os.path.exists(safe_path):
              # 避免泄露文件存在信息，或者直接报404
             raise HTTPException(status_code=404, detail="文件不存在")
-        
+
         # 再次确认是文件而不是目录
         if not os.path.isfile(safe_path):
              raise HTTPException(status_code=404, detail="文件不存在")
@@ -184,13 +185,13 @@ async def download_export_file(
                     os.remove(safe_path)
             except Exception:
                 pass
-        
+
         return FileResponse(
             path=safe_path,
             filename=filename,
             background=BackgroundTask(cleanup_file)
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:

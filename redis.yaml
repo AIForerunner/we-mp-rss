@@ -10,6 +10,6 @@ redis:
     #最大内存 (MB)
     max_memory: ${REDIS_SERVER_MAX_MEMORY:-128}
     #认证密码 (为空则不需要认证)
-    password: ${REDIS_SERVER_PASSWORD:-123456}
+    password: ${REDIS_SERVER_PASSWORD:-}
     #是否启用持久化
     persistence: ${REDIS_SERVER_PERSISTENCE:-true}

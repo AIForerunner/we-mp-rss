@@ -17,7 +17,30 @@ import hashlib
 from core.models.cascade_node import CascadeNode
 
 DB=db.Db(tag="用户连接")
-SECRET_KEY = cfg.get("secret","csol2025")  # 生产环境应使用更安全的密钥
+
+# 安全加固：JWT密钥配置
+# 优先从环境变量获取，否则生成随机密钥并警告
+import os
+import warnings
+
+_secret_from_env = os.environ.get('SECRET_KEY')
+if _secret_from_env:
+    SECRET_KEY = _secret_from_env
+else:
+    # 从配置文件获取
+    _secret_from_config = cfg.get("secret")
+    if _secret_from_config and _secret_from_config not in ["csol2025", "we-mp-rss"]:
+        SECRET_KEY = _secret_from_config
+    else:
+        # 生成随机密钥
+        import secrets
+        SECRET_KEY = secrets.token_urlsafe(64)
+        warnings.warn(
+            "⚠️ 安全警告: 未配置SECRET_KEY环境变量，已自动生成随机密钥。"
+            "建议在环境变量中设置SECRET_KEY以确保密钥持久化。",
+            UserWarning
+        )
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(cfg.get("token_expire_minutes",30))
 
