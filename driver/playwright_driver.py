@@ -59,6 +59,20 @@ try:
 except Exception:
     pass
 
+# Monkey patch Playwright 的 asyncio 检测,避免警告
+try:
+    import playwright.sync_api._generated
+    # 保存原始的 _check_not_asyncio 方法(如果存在)
+    if hasattr(playwright.sync_api._generated, '_check_not_asyncio'):
+        original_check = playwright.sync_api._generated._check_not_asyncio
+        # 替换为空函数,跳过检测
+        def _bypass_asyncio_check():
+            pass
+        playwright.sync_api._generated._check_not_asyncio = _bypass_asyncio_check
+except Exception:
+    # 如果 monkey patch 失败,继续执行
+    pass
+
 # 设置环境变量抑制 Playwright 警告
 os.environ.setdefault('PLAYWRIGHT_BROWSERS_PATH', os.getenv("PLAYWRIGHT_BROWSERS_PATH", ""))
 browsers_name = os.getenv("BROWSER_TYPE", "firefox")
@@ -480,18 +494,40 @@ class PlaywrightController:
                    PlaywrightController._thread_local.driver is None:
                     # 在独立线程中启动 Playwright,避免 asyncio 冲突
                     try:
+                        # 临时保存并移除当前事件循环
+                        saved_loop = None
+                        try:
+                            saved_loop = asyncio.get_running_loop()
+                            # 如果有运行中的事件循环,临时移除
+                            asyncio.set_event_loop(None)
+                        except RuntimeError:
+                            # 没有运行中的事件循环,继续
+                            pass
+                        
+                        # 设置正确的事件循环策略
+                        if sys.platform == "win32":
+                            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+                        
+                        # 启动 Playwright
                         PlaywrightController._thread_local.driver = sync_playwright().start()
                         print(f"Playwright driver 已为线程 {thread_id} 初始化")
+                        
+                        # 恢复事件循环(如果之前有)
+                        if saved_loop:
+                            asyncio.set_event_loop(saved_loop)
+                            
                     except Exception as e:
                         error_msg = str(e)
-                        # 如果是 asyncio 相关错误,尝试继续
+                        # 如果是 asyncio 相关错误,记录但继续尝试
                         if "asyncio" in error_msg.lower() or "sync api" in error_msg.lower():
-                            print(f"忽略 Playwright asyncio 检测错误,继续执行")
-                            # 重新尝试启动
-                            if sys.platform == "win32":
-                                asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-                            PlaywrightController._thread_local.driver = sync_playwright().start()
-                            print(f"Playwright driver 已为线程 {thread_id} 初始化(重试成功)")
+                            print(f"警告: Playwright asyncio 检测错误,但已在独立线程中,继续执行")
+                            # 最后一次尝试
+                            try:
+                                PlaywrightController._thread_local.driver = sync_playwright().start()
+                                print(f"Playwright driver 已为线程 {thread_id} 初始化(最终成功)")
+                            except Exception as e2:
+                                print(f"错误: 无法启动 Playwright: {str(e2)}")
+                                raise
                         else:
                             # 其他错误正常抛出
                             raise

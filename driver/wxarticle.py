@@ -225,49 +225,85 @@ class WXArticleFetcher:
     async def async_get_article_content(self,url:str)->Dict:
         """异步获取文章内容
         
-        使用独立线程运行同步代码,避免 asyncio 环境冲突
+        使用子进程运行同步代码,完全避免 asyncio 环境冲突
         """
         import asyncio
-        import threading
+        import multiprocessing
         import queue
-        import os
         
-        result_queue = queue.Queue()
-        
-        def worker():
-            """在工作线程中运行同步代码"""
+        def worker(url, result_queue, wait_timeout, browser_proxy_url):
+            """在子进程中运行同步代码"""
             try:
-                # 在新线程中创建新的实例,避免共享 controller
+                # 在子进程中,完全没有 asyncio 事件循环
                 from .playwright_driver import PlaywrightController
                 
                 # 创建新的 fetcher 实例
-                fetcher = WXArticleFetcher(wait_timeout=self.wait_timeout)
-                fetcher.browser_proxy_url = self.browser_proxy_url
+                fetcher = WXArticleFetcher(wait_timeout=wait_timeout)
+                fetcher.browser_proxy_url = browser_proxy_url
                 
                 result = fetcher.get_article_content(url)
                 result_queue.put(('success', result))
             except Exception as e:
                 result_queue.put(('error', str(e)))
         
-        # 创建并启动线程
-        thread = threading.Thread(target=worker, daemon=True)
-        thread.start()
-        
-        # 等待线程完成
-        thread.join(timeout=60)  # 60秒超时
-        
-        if thread.is_alive():
-            raise Exception("获取文章内容超时")
-        
-        # 获取结果
-        if not result_queue.empty():
-            status, data = result_queue.get()
-            if status == 'success':
-                return data
+        # 使用 multiprocessing.Manager 创建共享队列
+        try:
+            # 尝试使用多进程
+            m = multiprocessing.Manager()
+            result_queue = m.Queue()
+            
+            p = multiprocessing.Process(
+                target=worker,
+                args=(url, result_queue, self.wait_timeout, self.browser_proxy_url)
+            )
+            p.start()
+            p.join(timeout=60)  # 60秒超时
+            
+            if p.is_alive():
+                p.terminate()
+                raise Exception("获取文章内容超时")
+            
+            # 获取结果
+            if not result_queue.empty():
+                status, data = result_queue.get()
+                if status == 'success':
+                    return data
+                else:
+                    raise Exception(data)
             else:
-                raise Exception(data)
-        else:
-            raise Exception("未获取到结果")
+                raise Exception("未获取到结果")
+        except Exception as e:
+            # 如果多进程失败,回退到线程方案
+            print(f"多进程方案失败,回退到线程方案: {str(e)}")
+            
+            import threading
+            result_queue = queue.Queue()
+            
+            def thread_worker():
+                try:
+                    from .playwright_driver import PlaywrightController
+                    fetcher = WXArticleFetcher(wait_timeout=self.wait_timeout)
+                    fetcher.browser_proxy_url = self.browser_proxy_url
+                    result = fetcher.get_article_content(url)
+                    result_queue.put(('success', result))
+                except Exception as e:
+                    result_queue.put(('error', str(e)))
+            
+            thread = threading.Thread(target=thread_worker, daemon=True)
+            thread.start()
+            thread.join(timeout=60)
+            
+            if thread.is_alive():
+                raise Exception("获取文章内容超时")
+            
+            if not result_queue.empty():
+                status, data = result_queue.get()
+                if status == 'success':
+                    return data
+                else:
+                    raise Exception(data)
+            else:
+                raise Exception("未获取到结果")
     def get_article_content(self, url: str) -> Dict:
         """获取单篇文章详细内容
         
