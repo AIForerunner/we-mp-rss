@@ -166,6 +166,116 @@ async def clean_orphan_articles(
             )
         )
 
+
+@router.delete("/clean-old", summary="清理指定天数前的旧文章")
+async def clean_old_articles(
+    days: int = Query(3, ge=1, le=365, description="清理多少天前的文章，默认3天"),
+    mp_id: str = Query(None, description="公众号ID，不指定则清理所有公众号"),
+    dry_run: bool = Query(False, description="是否只预览不实际删除"),
+    current_user: dict = Depends(get_current_user_or_ak)
+):
+    """
+    清理指定天数前的旧文章
+    
+    Args:
+        days: 清理多少天前的文章，默认3天
+        mp_id: 公众号ID，不指定则清理所有公众号
+        dry_run: 是否只预览不实际删除（用于确认要删除的文章）
+    
+    Returns:
+        删除结果，包含删除数量和预览信息
+    """
+    import time as time_module
+    from datetime import datetime, timedelta
+    
+    session = DB.get_session()
+    try:
+        # 计算截止时间戳（N天前）
+        cutoff_date = datetime.now() - timedelta(days=days)
+        cutoff_timestamp = int(cutoff_date.timestamp())
+        
+        print_info(f"清理旧文章: 截止日期={cutoff_date.strftime('%Y-%m-%d %H:%M:%S')}, 时间戳={cutoff_timestamp}")
+        
+        # 构建查询 - 只查询未删除的文章
+        query = session.query(Article).filter(
+            Article.publish_time < cutoff_timestamp,
+            Article.status != DATA_STATUS.DELETED  # 排除已删除的文章
+        )
+        
+        # 如果指定了公众号ID，只删除该公众号的文章
+        if mp_id:
+            query = query.filter(Article.mp_id == mp_id)
+        
+        # 先获取总数
+        total_count = query.count()
+        print_info(f"符合条件的文章总数: {total_count}")
+        
+        # 获取预览文章（最多100条）
+        articles_to_delete = query.limit(100).all()
+        
+        # 预览信息
+        preview = []
+        for article in articles_to_delete[:20]:  # 最多显示20条预览
+            preview.append({
+                "id": article.id,
+                "title": article.title,
+                "mp_id": article.mp_id,
+                "publish_time": article.publish_time,
+                "publish_date": datetime.fromtimestamp(article.publish_time).strftime("%Y-%m-%d %H:%M:%S") if article.publish_time else None
+            })
+        
+        if dry_run:
+            # 只预览，不实际删除
+            return success_response({
+                "message": f"预览：将删除 {total_count} 篇 {days} 天前的文章",
+                "total_count": total_count,
+                "cutoff_date": cutoff_date.strftime("%Y-%m-%d %H:%M:%S"),
+                "cutoff_timestamp": cutoff_timestamp,
+                "preview_count": len(preview),
+                "preview": preview,
+                "dry_run": True
+            })
+        
+        # 实际删除
+        if cfg.get("article.true_delete", False):
+            # 物理删除
+            deleted_count = query.delete(synchronize_session=False)
+        else:
+            # 逻辑删除（更新状态为 DELETED）
+            deleted_count = query.update(
+                {Article.status: DATA_STATUS.DELETED},
+                synchronize_session=False
+            )
+        
+        session.commit()
+        
+        # 清除相关缓存
+        clear_cache_pattern("articles_list")
+        clear_cache_pattern("article_detail")
+        clear_cache_pattern("home_page")
+        clear_cache_pattern("tag_detail")
+        
+        return success_response({
+            "message": f"成功删除 {deleted_count} 篇 {days} 天前的文章",
+            "deleted_count": deleted_count,
+            "cutoff_date": cutoff_date.strftime("%Y-%m-%d %H:%M:%S"),
+            "days": days,
+            "mp_id": mp_id,
+            "physical_delete": cfg.get("article.true_delete", False)
+        })
+    except Exception as e:
+        session.rollback()
+        print_error(f"清理旧文章错误: {str(e)}")
+        raise HTTPException(
+            status_code=fast_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_response(
+                code=50001,
+                message=f"清理旧文章失败: {str(e)}"
+            )
+        )
+    finally:
+        session.close()
+
 @router.put("/{article_id}/read", summary="改变文章阅读状态")
 async def toggle_article_read_status(
     article_id: str,

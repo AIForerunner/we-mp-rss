@@ -108,6 +108,10 @@
                     <template #icon> <TextIcon text="C" /></template>
                     清理重复文章
                   </a-doption>
+                  <a-doption @click="showCleanOldArticlesModal">
+                    <template #icon> <TextIcon text="O" /></template>
+                    清理旧文章
+                  </a-doption>
                 </template>
               </a-dropdown>
               <a-button @click="handleAuthClick">
@@ -245,6 +249,54 @@
               <a-button type="primary" @click="handleAddFeaturedArticle">添加</a-button>
             </template>
           </a-modal>
+          <!-- 清理旧文章模态框 -->
+          <a-modal v-model:visible="cleanOldArticlesModalVisible" title="清理旧文章" :width="600">
+            <a-form :model="cleanOldArticlesForm" layout="vertical">
+              <a-form-item label="清理多少天前的文章">
+                <a-input-number v-model="cleanOldArticlesForm.days" :min="1" :max="365" placeholder="默认3天" />
+                <span style="margin-left: 8px; color: var(--color-text-3);">天</span>
+              </a-form-item>
+              <a-form-item label="公众号">
+                <a-select v-model="cleanOldArticlesForm.mp_id" placeholder="全部公众号" allow-clear>
+                  <a-option value="">全部公众号</a-option>
+                  <a-option v-for="mp in mpList" :key="mp.id" :value="mp.id">{{ mp.name }}</a-option>
+                </a-select>
+              </a-form-item>
+              <a-alert type="warning" style="margin-top: 12px;">
+                注意：删除操作不可恢复，建议先点击"预览"查看将要删除的文章数量
+              </a-alert>
+            </a-form>
+            <template #footer>
+              <a-space>
+                <a-button @click="cleanOldArticlesModalVisible = false">取消</a-button>
+                <a-button @click="handleCleanOldArticlesPreview" :loading="cleanOldArticlesLoading">
+                  预览
+                </a-button>
+                <a-button type="primary" status="danger" @click="handleCleanOldArticles" :loading="cleanOldArticlesLoading">
+                  确认删除
+                </a-button>
+              </a-space>
+            </template>
+          </a-modal>
+          <!-- 预览结果模态框 -->
+          <a-modal v-model:visible="cleanOldArticlesPreviewVisible" title="预览结果" :width="400" :footer="false">
+            <a-result status="warning" :title="`将删除 ${cleanOldArticlesPreviewData.total_count || 0} 篇文章`">
+              <template #subtitle>
+                <div style="text-align: center;">
+                  <p>清理 {{ cleanOldArticlesPreviewData.days || 3 }} 天前的文章</p>
+                  <p style="color: var(--color-text-3); font-size: 12px;">截止日期：{{ cleanOldArticlesPreviewData.cutoff_date }}</p>
+                </div>
+              </template>
+              <template #extra>
+                <a-space>
+                  <a-button @click="cleanOldArticlesPreviewVisible = false">取消</a-button>
+                  <a-button type="primary" status="danger" @click="handleCleanOldArticlesConfirm">
+                    确认删除
+                  </a-button>
+                </a-space>
+              </template>
+            </a-result>
+          </a-modal>
           <a-modal id="article-model" v-model:visible="articleModalVisible"
             placement="left" :footer="false" :fullscreen="false" @before-close="resetScrollPosition">
             <h2 id="topreader">{{ currentArticle.title }}</h2>
@@ -273,7 +325,7 @@ import { translatePage, setCurrentLanguage } from '@/utils/translate';
 import { ref, onMounted, h, nextTick, watch, computed, resolveComponent } from 'vue'
 import axios from 'axios'
 import { IconApps, IconAtt, IconDelete, IconEdit, IconEye, IconRefresh, IconScan, IconWeiboCircleFill, IconWifi, IconCode, IconCheck, IconClose, IconStop, IconPlayArrow, IconCopy, IconPlus, IconDown, IconExport, IconImport, IconShareExternal, IconStar, IconStarFill, IconLink, IconSettings } from '@arco-design/web-vue/es/icon'
-import { getArticles, deleteArticle as deleteArticleApi, ClearArticle, ClearDuplicateArticle, getArticleDetail, getRefreshArticleTaskStatus, refreshArticle as refreshArticleApi, toggleArticleFavoriteStatus, toggleArticleReadStatus } from '@/api/article'
+import { getArticles, deleteArticle as deleteArticleApi, ClearArticle, ClearDuplicateArticle, getArticleDetail, getRefreshArticleTaskStatus, refreshArticle as refreshArticleApi, toggleArticleFavoriteStatus, toggleArticleReadStatus, cleanOldArticles } from '@/api/article'
 import { ExportOPML, ExportMPS, ImportMPS } from '@/api/export'
 import ExportModal from '@/components/ExportModal.vue'
 import { addFeaturedArticle, getFeaturedArticleTaskStatus, getSubscriptions, UpdateMps, toggleMpStatus as toggleMpStatusApi } from '@/api/subscription'
@@ -296,7 +348,7 @@ const exportModal = ref()
 const selectedRowKeys = ref([])
 const mpPagination = ref({
   current: 1,
-  pageSize: 10,
+  pageSize: 8,
   total: 0,
   showPageSize: false,
   showJumper: false,
@@ -857,6 +909,89 @@ const resetScrollPosition = () => {
 }
 
 const fullLoading = ref(false)
+
+// 清理旧文章相关
+const cleanOldArticlesModalVisible = ref(false)
+const cleanOldArticlesPreviewVisible = ref(false)
+const cleanOldArticlesLoading = ref(false)
+const cleanOldArticlesForm = ref({
+  days: 3,
+  mp_id: ''
+})
+const cleanOldArticlesPreviewData = ref<any>({})
+
+const showCleanOldArticlesModal = () => {
+  cleanOldArticlesForm.value = {
+    days: 3,
+    mp_id: ''
+  }
+  cleanOldArticlesModalVisible.value = true
+}
+
+const handleCleanOldArticlesPreview = async () => {
+  cleanOldArticlesLoading.value = true
+  try {
+    const res = await cleanOldArticles({
+      days: cleanOldArticlesForm.value.days,
+      mp_id: cleanOldArticlesForm.value.mp_id || undefined,
+      dry_run: true
+    })
+    // http 拦截器已经返回了 data 部分
+    cleanOldArticlesPreviewData.value = res || {}
+    console.log('预览结果:', res)
+    cleanOldArticlesPreviewVisible.value = true
+  } catch (error) {
+    console.error('预览失败:', error)
+    Message.error(String(error || '预览失败'))
+  } finally {
+    cleanOldArticlesLoading.value = false
+  }
+}
+
+const handleCleanOldArticlesConfirm = async () => {
+  cleanOldArticlesLoading.value = true
+  try {
+    const res = await cleanOldArticles({
+      days: cleanOldArticlesForm.value.days,
+      mp_id: cleanOldArticlesForm.value.mp_id || undefined,
+      dry_run: false
+    })
+    Message.success(res?.message || '删除成功')
+    cleanOldArticlesPreviewVisible.value = false
+    cleanOldArticlesModalVisible.value = false
+    fetchArticles()
+  } catch (error) {
+    Message.error(String(error || '删除失败'))
+  } finally {
+    cleanOldArticlesLoading.value = false
+  }
+}
+
+const handleCleanOldArticles = async () => {
+  Modal.confirm({
+    title: '确认删除',
+    content: `确定要删除 ${cleanOldArticlesForm.value.days} 天前的文章吗？此操作不可恢复！`,
+    okText: '确认删除',
+    cancelText: '取消',
+    onOk: async () => {
+      cleanOldArticlesLoading.value = true
+      try {
+        const res = await cleanOldArticles({
+          days: cleanOldArticlesForm.value.days,
+          mp_id: cleanOldArticlesForm.value.mp_id || undefined,
+          dry_run: false
+        })
+        Message.success(res?.message || '删除成功')
+        cleanOldArticlesModalVisible.value = false
+        fetchArticles()
+      } catch (error) {
+        Message.error(String(error || '删除失败'))
+      } finally {
+        cleanOldArticlesLoading.value = false
+      }
+    }
+  })
+}
 
 const refreshModalVisible = ref(false)
 const refreshForm = ref({
