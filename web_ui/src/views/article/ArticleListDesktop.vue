@@ -665,7 +665,7 @@ const columns = computed(() => {
     {
       title: '更新时间',
       dataIndex: 'created_at',
-      width: 130,
+      width: 140,
       render: ({ record }) => h('span',
         { style: { color: 'var(--color-text-3)', fontSize: '12px' } },
         formatDateTime(record.created_at)
