@@ -78,10 +78,10 @@ class Wx:
                 if 'token' in cookie['name'].lower():
                     return cookie['value']
 
-            return None
+            return ''
         except Exception as e:
             print(f"提取token时出错: {str(e)}")
-            return None
+            return ''
     async def switch_account(self, username: str = ""):
         """切换账号功能（异步）
         Args:
@@ -365,7 +365,7 @@ class Wx:
                     # 为每个cookie添加必要的domain字段
                     for c in cookie:
                         if 'domain' not in c:
-                            c['domain'] = '.weixin.qq.com'
+                            c['domain'] = 'mp.weixin.qq.com'
                         if 'path' not in c:
                             c['path'] = '/'
                     await controller.add_cookies(cookie)

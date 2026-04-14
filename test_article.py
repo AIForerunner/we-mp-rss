@@ -539,8 +539,8 @@ def switchaccount():
     if not asyncio.run(WX_API.switch_account()):
         from jobs.failauth import send_wx_code
         import threading
-        threading.Thread(target=send_wx_code,args=(f"公众号平台登录失效,请重新登录",)).start()
-    input("按回车键退出")
+        # threading.Thread(target=send_wx_code,args=(f"公众号平台登录失效,请重新登录",)).start()
+        input("按回车键退出")
     pass
 if __name__=="__main__":
     # testLogin()
