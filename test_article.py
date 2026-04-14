@@ -531,14 +531,19 @@ def test_anti_bot_quick():
     finally:
         controller.cleanup()
 
-
+def switchaccount():
+    import asyncio
+    from driver.base import WX_API
+    asyncio.run(WX_API.switch_account())
+    pass
 if __name__=="__main__":
     # testLogin()
     # test_anti_bot_quick()
     # test_anti_bot_detection()
     # test_screenshot()
-    test_Gather_Article()
+    # test_Gather_Article()
     # text_fix()    
+    switchaccount()
     # testWx_Api()
     # test_fetch_articles_without_content()
     # testWeb()
