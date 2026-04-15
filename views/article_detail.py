@@ -18,7 +18,7 @@ from core.cache import cache_view, clear_cache_pattern, data_cache
 from sqlalchemy.orm import defer
 # 创建路由器
 router = APIRouter(tags=["文章详情"])
-@router.get("/article/print/{article_id}", response_class=HTMLResponse, summary="文章打印页")
+@router.get("/print/{article_id}", response_class=HTMLResponse, summary="文章打印页")
 @cache_view("article_detail", ttl=1)  
 async def print(
     request: Request,
