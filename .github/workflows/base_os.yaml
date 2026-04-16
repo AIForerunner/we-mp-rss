@@ -5,6 +5,7 @@ on:
       - main
     paths:  # 仅在指定文件变化时触发（可选）
       - 'Dockerfiles/py38/Dockerfile'
+  workflow_dispatch:  # 支持手动触发
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
