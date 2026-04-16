@@ -1,4 +1,4 @@
-name: Base OS Image GITHUB
+name: Base OS Image
 on:
   push:
     branches:
