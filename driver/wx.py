@@ -248,13 +248,13 @@ class Wx:
 
         except Exception as e:
             print_error(f"切换账号时发生错误: {str(e)}")
-            # 切换失败时清理资源
-            self.cleanup_resources()
-            await self.Close()
             return False
         finally:
             # 恢复任务队列
             try:
+                  # 切换失败时清理资源
+                self.cleanup_resources()
+                await self.Close()
                 from core.queue import TaskQueue, ContentTaskQueue
                 print_info(f"准备恢复队列: 主队列={main_queue_was_running}, 内容队列={content_queue_was_running}")
                 if main_queue_was_running:
