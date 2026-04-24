@@ -63,10 +63,6 @@
                       <div v-if="item.mp_intro" style="font-size: 12px; color: var(--color-text-2); line-height: 1.5;">
                         {{ item.mp_intro }}
                       </div>
-                      <div style="display: flex; gap: 12px; font-size: 12px; color: var(--color-text-3);">
-                        <span>文章数: {{ item.article_count || 0 }}</span>
-                        <span>状态: {{ item.status === 1 ? '启用' : '停用' }}</span>
-                      </div>
                       <div v-if="canManageMp(item.id)" style="display: flex; gap: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
                         <a-button size="small" type="text" status="danger" @click.stop="deleteMp(item.id)">
                           <template #icon><icon-delete /></template>
