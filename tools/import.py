@@ -78,6 +78,8 @@ def import_mps(data_file:str="./data/data1.txt"):
         from core.db import DB
         from core.models.feed import Feed
         from core.wx import search_Biz
+        from core.wx import WxGather
+        from jobs.article import UpdateArticle
         from datetime import datetime
         import base64
         import time
@@ -140,6 +142,22 @@ def import_mps(data_file:str="./data/data1.txt"):
                     session.commit()
                     print(f"  ✓ 添加成功: {mp_name}")
                     success_count += 1
+
+                    # 与 Web 端添加行为保持一致：首次导入后立即抓取首轮文章
+                    try:
+                        wx = WxGather().Model()
+                        wx.get_Articles(
+                            mp_id,
+                            Mps_id=new_feed.id,
+                            Mps_title=mp_name,
+                            CallBack=UpdateArticle,
+                            start_page=0,
+                            MaxPage=1,
+                            interval=3,
+                        )
+                        print(f"  ↳ 首轮文章补抓完成: {mp_name}")
+                    except Exception as fetch_err:
+                        print(f"  ↳ 首轮文章补抓失败 {mp_name}: {fetch_err}")
                     
                     # 添加延迟避免频繁请求
                     time.sleep(random.randint(1, 3))

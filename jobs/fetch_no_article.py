@@ -5,6 +5,17 @@ from core.wait import Wait
 from core.print import print_success,print_error,print_warning
 from core.article_content import build_article_url, sync_article_content
 DB=db.Db(tag="内容修正")
+
+
+def _safe_int_cfg(key: str, default: int, min_value: int, max_value: int) -> int:
+    raw = cfg.get(key, default)
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        value = default
+    return max(min_value, min(value, max_value))
+
+
 def fetch_articles_without_content():
     """
     查询content为空的文章，调用微信内容提取方法获取内容并更新数据库
@@ -12,6 +23,12 @@ def fetch_articles_without_content():
     """
     session = DB.get_session()
     try:
+        batch_size = _safe_int_cfg("gather.content_auto_batch_size", 50, 1, 200)
+        wait_min = _safe_int_cfg("gather.content_auto_wait_min", 5, 0, 60)
+        wait_max = _safe_int_cfg("gather.content_auto_wait_max", 10, 0, 120)
+        if wait_min > wait_max:
+            wait_min, wait_max = wait_max, wait_min
+
         # 查询content为空且未被锁定的文章
         from sqlalchemy import or_
         articles = session.query(Article).filter(
@@ -19,7 +36,7 @@ def fetch_articles_without_content():
             Article.status != DATA_STATUS.FETCHING,  # 排除正在获取的文章
             Article.status != DATA_STATUS.DELETED,  # 已删除文章不再参与自动补抓
             or_(Article.fix_fail_count.is_(None), Article.fix_fail_count < 3)  # 排除失败3次及以上的文章
-        ).order_by(Article.publish_time.desc()).limit(10).all()
+        ).order_by(Article.publish_time.desc()).limit(batch_size).all()
         
         if not articles:
             print_warning("暂无需要获取内容的文章")
@@ -58,7 +75,7 @@ def fetch_articles_without_content():
                     article.status = original_status_map.get(article.id, DATA_STATUS.ACTIVE)
                     session.commit()
                     print_error(f"获取文章 {article.title} 内容失败, mode={fetch_mode}")
-                Wait(min=5,max=10,tips=f"修正 {article.title}... 完成")
+                Wait(min=wait_min,max=wait_max,tips=f"修正 {article.title}... 完成")
             except Exception as e:
                 # 单篇文章处理失败，恢复状态
                 article.status = original_status_map.get(article.id, DATA_STATUS.ACTIVE)
