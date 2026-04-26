@@ -140,6 +140,10 @@
                 <template #icon><icon-scan /></template>
                 刷新授权
               </a-button>
+              <a-button @click="handleBatchUpdate" :loading="batchUpdating">
+                <template #icon><icon-refresh /></template>
+                全量拉取
+              </a-button>
               <a-dropdown>
                 <a-button>
                   <template #icon>
@@ -175,7 +179,7 @@
         </a-page-header>
 
         <a-card style="border:0">
-          <a-alert type="success" closable>{{ activeFeed?.mp_intro || "请选择一个公众号码进行管理,搜索文章后再点击订阅会有惊喜哟！！！" }}</a-alert>
+          <a-alert type="success" closable>{{ activeFeed?.mp_intro || "请选择一个公众号进行管理；可在上方搜索文章，也可通过左侧订阅入口添加新公众号。" }}</a-alert>
           <div class="search-bar">
             <a-input-search class="search-input" v-model="searchText" placeholder="搜索文章标题" @search="handleSearch" @keyup.enter="handleSearch"
               allow-clear />
@@ -357,7 +361,7 @@ import { IconApps, IconAtt, IconDelete, IconEdit, IconEye, IconRefresh, IconScan
 import { getArticles, deleteArticle as deleteArticleApi, ClearArticle, ClearDuplicateArticle, getArticleDetail, getRefreshArticleTaskStatus, refreshArticle as refreshArticleApi, toggleArticleFavoriteStatus, toggleArticleReadStatus, cleanOldArticles } from '@/api/article'
 import { ExportOPML, ExportMPS, ImportMPS } from '@/api/export'
 import ExportModal from '@/components/ExportModal.vue'
-import { addFeaturedArticle, getFeaturedArticleTaskStatus, getSubscriptions, UpdateMps, toggleMpStatus as toggleMpStatusApi } from '@/api/subscription'
+import { addFeaturedArticle, getFeaturedArticleTaskStatus, getSubscriptions, UpdateMps, toggleMpStatus as toggleMpStatusApi, batchUpdateMps } from '@/api/subscription'
 import { inject } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import { formatDateTime, formatTimestamp } from '@/utils/date'
@@ -744,6 +748,17 @@ const activeFeed = ref({
   id: "",
   name: "全部",
 })
+
+// 当 mpList 更新时，自动同步 activeFeed（修复刷新按钮显示问题）
+watch(mpList, () => {
+  if (activeMpId.value) {
+    const updated = mpList.value.find(item => item.id === activeMpId.value)
+    if (updated) {
+      activeFeed.value = updated
+    }
+  }
+})
+
 const canManageMp = (mpId: string) => mpId !== '' && mpId !== FEATURED_MP_ID
 
 const showAddFeaturedArticleModal = () => {
@@ -975,6 +990,7 @@ const resetScrollPosition = () => {
 }
 
 const fullLoading = ref(false)
+const batchUpdating = ref(false)
 
 // 清理旧文章相关
 const cleanOldArticlesModalVisible = ref(false)
@@ -1089,6 +1105,45 @@ const handleRefresh = () => {
   })
   fetchArticles()
 }
+
+const handleBatchUpdate = () => {
+  Modal.confirm({
+    title: '全量拉取',
+    content: '将拉取所有启用公众号的第一页。请注意：最近更新过的公众号会被跳过（频率限制保护）。此操作在后台执行，不会阻塞操作界面。',
+    okText: '开始',
+    cancelText: '取消',
+    onOk: async () => {
+      batchUpdating.value = true
+      try {
+        const res = await batchUpdateMps()
+        if (res) {
+          const { skipped, skipped_list, message } = res
+          let detail = `${message}\n\n`
+          if (skipped > 0) {
+            detail += `⏳ 等待冷却中的公众号 (${skipped} 个):\n`
+            skipped_list.slice(0, 5).forEach((item: any) => {
+              detail += `  • ${item.mp_name}: 还需等待 ${item.wait_seconds} 秒\n`
+            })
+            if (skipped_list.length > 5) {
+              detail += `  ... 以及其他 ${skipped_list.length - 5} 个\n`
+            }
+          }
+          Message.success(detail, { duration: 5 })
+          // 稍后刷新一下列表
+          setTimeout(() => {
+            fetchMpList()
+            fetchArticles()
+          }, 1000)
+        }
+      } catch (error: any) {
+        Message.error(error?.message || '全量拉取失败')
+      } finally {
+        batchUpdating.value = false
+      }
+    }
+  })
+}
+
 const clear_articles = () => {
   fullLoading.value = true
   ClearArticle().then((res) => {

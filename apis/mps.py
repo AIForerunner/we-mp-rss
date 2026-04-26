@@ -339,6 +339,99 @@ async def get_featured_article_task_status(
         )
     return success_response(task)
 
+@router.get("/batch-update", summary="全量拉取所有公众号第一页（带频率限制保护）")
+async def batch_update_mps(
+    current_user: dict = Depends(get_current_user_or_ak)
+):
+    """
+    全量拉取所有启用的公众号的第一页。
+    具有以下保护机制：
+    1. 每个公众号单独的 sync_interval 限制（默认 60 秒）
+    2. 后台线程异步执行，避免阻塞
+    3. 跳过最近被更新过的公众号
+    """
+    session = DB.get_session()
+    try:
+        from core.models.feed import Feed
+        import time
+        import threading
+        
+        # 获取所有启用的公众号（除了精选文章）
+        mps = session.query(Feed).filter(
+            Feed.status == 1,
+            Feed.id != "FEATURED_MP_ID"
+        ).all()
+        
+        sync_interval = cfg.get("sync_interval", 60)
+        current_time = int(time.time())
+        
+        # 统计需要更新的公众号
+        to_update = []
+        skipped = []
+        
+        for mp in mps:
+            if mp.update_time is None:
+                mp.update_time = current_time - sync_interval
+                session.commit()
+            
+            time_span = current_time - int(mp.update_time)
+            if time_span >= sync_interval:
+                to_update.append(mp)
+            else:
+                skipped.append({
+                    "mp_id": mp.id,
+                    "mp_name": mp.mp_name,
+                    "wait_seconds": sync_interval - time_span
+                })
+        
+        # 后台任务：逐个拉取，保持间隔防止反爬
+        def _batch_update_task():
+            from core.wx import WxGather
+            for idx, mp in enumerate(to_update):
+                try:
+                    wx = WxGather().Model()
+                    wx.get_Articles(
+                        mp.faker_id,
+                        Mps_id=mp.id,
+                        Mps_title=mp.mp_name,
+                        CallBack=UpdateArticle,
+                        start_page=0,
+                        MaxPage=1
+                    )
+                    # 更新 update_time
+                    mp_record = session.query(Feed).filter(Feed.id == mp.id).first()
+                    if mp_record:
+                        mp_record.update_time = int(time.time())
+                        session.commit()
+                    
+                    # 公众号之间保持间隔，避免频繁调用微信接口
+                    if idx < len(to_update) - 1:
+                        time.sleep(2)
+                except Exception as e:
+                    print(f"批量拉取公众号 {mp.mp_name} 失败: {str(e)}")
+            session.close()
+        
+        # 启动后台线程
+        if to_update:
+            threading.Thread(target=_batch_update_task, daemon=True).start()
+        
+        return success_response({
+            "total": len(mps),
+            "to_update": len(to_update),
+            "skipped": len(skipped),
+            "skipped_list": skipped,
+            "message": f"已启动全量拉取，将更新 {len(to_update)} 个公众号（{len(skipped)} 个正在冷却中）"
+        })
+    except Exception as e:
+        print(f"批量更新公众号文章错误: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_201_CREATED,
+            detail=error_response(
+                code=50001,
+                message=f"批量更新公众号文章失败: {str(e)}"
+            )
+        )
+
 @router.get("/update/{mp_id}", summary="更新公众号文章")
 async def update_mps(
      mp_id: str,

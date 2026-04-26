@@ -15,6 +15,27 @@ import asyncio
 router = APIRouter(prefix="/task-queue", tags=["任务队列"])
 
 
+def _collect_schedulers():
+    """收集可用的调度器实例（消息采集 + 正文补抓）"""
+    schedulers = []
+
+    try:
+        from jobs.mps import scheduler as mps_scheduler
+        if mps_scheduler:
+            schedulers.append(("message", mps_scheduler))
+    except Exception as e:
+        logger.warning(f"Load message scheduler failed: {str(e)}")
+
+    try:
+        from jobs.fetch_no_article import scheduler as content_scheduler
+        if content_scheduler:
+            schedulers.append(("content", content_scheduler))
+    except Exception as e:
+        logger.warning(f"Load content scheduler failed: {str(e)}")
+
+    return schedulers
+
+
 def _get_content_fetch_progress(in_progress_count: int = 0):
     """获取正文补抓进度统计（手动刷新场景）"""
     session = DB.get_session()
@@ -171,18 +192,33 @@ async def get_scheduler_status(
         - next_run_times: 各任务下次执行时间
     """
     try:
-        # 从 jobs.mps 导入调度器实例
-        from jobs.mps import scheduler
-        status = scheduler.get_scheduler_status()
-        logger.info(f"Scheduler status: {status}")
-        return success_response(data=status)
-    except ImportError as e:
-        logger.error(f"Import scheduler error: {str(e)}")
-        return success_response(data={
+        schedulers = _collect_schedulers()
+        if not schedulers:
+            logger.warning("No scheduler instance available")
+            return success_response(data={
+                'running': False,
+                'job_count': 0,
+                'next_run_times': []
+            })
+
+        aggregated = {
             'running': False,
             'job_count': 0,
             'next_run_times': []
-        })
+        }
+
+        for scheduler_type, scheduler_instance in schedulers:
+            status = scheduler_instance.get_scheduler_status()
+            aggregated['running'] = aggregated['running'] or bool(status.get('running', False))
+            aggregated['job_count'] += int(status.get('job_count', 0) or 0)
+
+            for item in status.get('next_run_times', []) or []:
+                if isinstance(item, (list, tuple)) and len(item) == 2:
+                    job_id, next_run_time = item
+                    aggregated['next_run_times'].append((f"{scheduler_type}:{job_id}", next_run_time))
+
+        logger.info(f"Scheduler status: {aggregated}")
+        return success_response(data=aggregated)
     except Exception as e:
         logger.error(f"Get scheduler status error: {str(e)}")
         return error_response(code=500, message=str(e))
@@ -195,26 +231,32 @@ async def get_scheduler_jobs(
     获取所有定时任务的详细信息
     """
     try:
-        from jobs.mps import scheduler
-        job_ids = scheduler.get_job_ids()
+        schedulers = _collect_schedulers()
+        if not schedulers:
+            return success_response(data={
+                'jobs': [],
+                'total': 0
+            })
+
         jobs = []
-        for job_id in job_ids:
-            try:
-                details = scheduler.get_job_details(job_id)
-                jobs.append(details)
-            except Exception as job_error:
-                logger.warning(f"Get job {job_id} details error: {str(job_error)}")
-                jobs.append({'id': job_id, 'error': '获取详情失败'})
+
+        for scheduler_type, scheduler_instance in schedulers:
+            job_ids = scheduler_instance.get_job_ids()
+            for job_id in job_ids:
+                try:
+                    details = scheduler_instance.get_job_details(job_id)
+                    details['id'] = f"{scheduler_type}:{details.get('id', job_id)}"
+                    details['name'] = details.get('name') or f"{scheduler_type}:{job_id}"
+                    details['scheduler_type'] = scheduler_type
+                    jobs.append(details)
+                except Exception as job_error:
+                    logger.warning(f"Get job {scheduler_type}:{job_id} details error: {str(job_error)}")
+                    jobs.append({'id': f"{scheduler_type}:{job_id}", 'error': '获取详情失败', 'scheduler_type': scheduler_type})
+
         logger.info(f"Scheduler jobs: {len(jobs)} jobs")
         return success_response(data={
             'jobs': jobs,
             'total': len(jobs)
-        })
-    except ImportError as e:
-        logger.error(f"Import scheduler error: {str(e)}")
-        return success_response(data={
-            'jobs': [],
-            'total': 0
         })
     except Exception as e:
         logger.error(f"Get scheduler jobs error: {str(e)}")
