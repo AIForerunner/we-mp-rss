@@ -22,6 +22,14 @@ export interface CurrentTask {
   status: string;
 }
 
+export interface ContentFetchProgress {
+  total: number;
+  completed: number;
+  pending: number;
+  in_progress: number;
+  failed_pending: number;
+}
+
 export interface QueueStatus {
   tag: string;
   is_running: boolean;
@@ -30,11 +38,13 @@ export interface QueueStatus {
   current_task: CurrentTask | null;
   history_count: number;
   recent_history: TaskRecord[];
+  content_progress?: ContentFetchProgress;
 }
 
 export interface AllQueuesStatus {
   main_queue: QueueStatus | null;
   content_queue: QueueStatus | null;
+  content_progress?: ContentFetchProgress;
 }
 
 export interface SchedulerJob {
@@ -59,6 +69,7 @@ export const getQueueStatus = async (): Promise<AllQueuesStatus> => {
     return {
       main_queue: data?.main_queue || null,
       content_queue: data?.content_queue || null,
+      content_progress: data?.content_progress || null,
     };
   } catch (error) {
     console.error('Get queue status error:', error);
@@ -99,6 +110,7 @@ const normalizeQueueStatus = (data: any): QueueStatus => {
       current_task: data.current_task || null,
       history_count: data.history_count || 0,
       recent_history: data.recent_history || [],
+      content_progress: data.content_progress || undefined,
     };
   }
   return {

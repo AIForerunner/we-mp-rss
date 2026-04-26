@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // 页面加载时恢复主题
-    var savedTheme = localStorage.getItem('theme') || 'sepia';
+    var savedTheme = localStorage.getItem('theme') || 'default';
     if (savedTheme !== 'default') {
         document.documentElement.setAttribute('data-theme', savedTheme);
     }

@@ -139,6 +139,29 @@
                 <span class="value">{{ contentQueueStatus.history_count ?? 0 }}</span>
               </div>
             </div>
+
+            <div class="status-row progress-row">
+              <div class="status-item compact">
+                <span class="label">正文总数</span>
+                <span class="value">{{ contentQueueStatus.content_progress?.total ?? 0 }}</span>
+              </div>
+              <div class="status-item compact">
+                <span class="label">已完成</span>
+                <span class="value done">{{ contentQueueStatus.content_progress?.completed ?? 0 }}</span>
+              </div>
+              <div class="status-item compact">
+                <span class="label">剩余</span>
+                <span class="value pending">{{ contentQueueStatus.content_progress?.pending ?? 0 }}</span>
+              </div>
+              <div class="status-item compact">
+                <span class="label">进行中</span>
+                <span class="value running">{{ contentQueueStatus.content_progress?.in_progress ?? 0 }}</span>
+              </div>
+              <div class="status-item compact">
+                <span class="label">失败待重试</span>
+                <span class="value failed">{{ contentQueueStatus.content_progress?.failed_pending ?? 0 }}</span>
+              </div>
+            </div>
             
             <!-- 当前任务 -->
             <div class="current-task-section">
@@ -269,6 +292,13 @@ const contentQueueStatus = ref<QueueStatus>({
   current_task: null,
   history_count: 0,
   recent_history: [],
+  content_progress: {
+    total: 0,
+    completed: 0,
+    pending: 0,
+    in_progress: 0,
+    failed_pending: 0,
+  },
 })
 
 // 历史记录
@@ -282,6 +312,14 @@ const schedulerStatus = ref<SchedulerStatus>({
 })
 
 const schedulerJobs = ref<SchedulerJob[]>([])
+
+const emptyContentProgress = {
+  total: 0,
+  completed: 0,
+  pending: 0,
+  in_progress: 0,
+  failed_pending: 0,
+}
 
 // WebSocket 连接
 let ws: WebSocket | null = null
@@ -329,7 +367,13 @@ const connectWebSocket = () => {
             mainHistory.value = message.data.main_queue.recent_history || []
           }
           if (message.data.content_queue) {
-            contentQueueStatus.value = message.data.content_queue
+            contentQueueStatus.value = {
+              ...message.data.content_queue,
+              content_progress:
+                message.data.content_queue.content_progress ||
+                contentQueueStatus.value.content_progress ||
+                emptyContentProgress,
+            }
             contentHistory.value = message.data.content_queue.recent_history || []
           }
         }
@@ -404,7 +448,10 @@ const refreshAll = async () => {
       mainHistory.value = queueData.main_queue.recent_history || []
     }
     if (queueData.content_queue) {
-      contentQueueStatus.value = queueData.content_queue
+      contentQueueStatus.value = {
+        ...queueData.content_queue,
+        content_progress: queueData.content_queue.content_progress || queueData.content_progress || emptyContentProgress,
+      }
       contentHistory.value = queueData.content_queue.recent_history || []
     }
     
@@ -573,6 +620,11 @@ onUnmounted(() => {
   gap: 12px;
 }
 
+.status-row.progress-row {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .status-item {
   flex: 1;
   text-align: center;
@@ -597,6 +649,27 @@ onUnmounted(() => {
 
 .status-item .value.pending {
   color: #ff7d00;
+}
+
+.status-item .value.done {
+  color: #00b42a;
+}
+
+.status-item .value.running {
+  color: #165dff;
+}
+
+.status-item .value.failed {
+  color: #f53f3f;
+}
+
+.status-item.compact {
+  flex: 1;
+  min-width: 90px;
+}
+
+.status-item.compact .value {
+  font-size: 16px;
 }
 
 /* 当前任务 */

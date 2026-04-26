@@ -1,15 +1,54 @@
 """任务队列管理API"""
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from typing import Optional
+from sqlalchemy import func, or_
 from core.auth import get_current_user_or_ak
 from core.queue import TaskQueue, ContentTaskQueue, get_all_queues_status
 from core.task.task import TaskScheduler
 from core.ws_manager import ws_manager
+from core.db import DB
+from core.models import Article, DATA_STATUS
 from .base import success_response, error_response
 from core.log import logger
 import asyncio
 
 router = APIRouter(prefix="/task-queue", tags=["任务队列"])
+
+
+def _get_content_fetch_progress(in_progress_count: int = 0):
+    """获取正文补抓进度统计（手动刷新场景）"""
+    session = DB.get_session()
+    try:
+        base_filter = [Article.status != DATA_STATUS.DELETED]
+
+        total = session.query(func.count(Article.id)).filter(*base_filter).scalar() or 0
+        completed = session.query(func.count(Article.id)).filter(
+            *base_filter,
+            Article.has_content == 1
+        ).scalar() or 0
+        pending = session.query(func.count(Article.id)).filter(
+            *base_filter,
+            or_(Article.has_content == 0, Article.has_content.is_(None))
+        ).scalar() or 0
+        failed_pending = session.query(func.count(Article.id)).filter(
+            *base_filter,
+            or_(Article.has_content == 0, Article.has_content.is_(None)),
+            Article.fix_fail_count > 0
+        ).scalar() or 0
+        fetching = session.query(func.count(Article.id)).filter(
+            *base_filter,
+            Article.status == DATA_STATUS.FETCHING
+        ).scalar() or 0
+
+        return {
+            "total": int(total),
+            "completed": int(completed),
+            "pending": int(pending),
+            "in_progress": int(max(in_progress_count, int(fetching))),
+            "failed_pending": int(failed_pending),
+        }
+    finally:
+        session.close()
 
 @router.get("/status", summary="获取任务队列状态")
 async def get_queue_status(
@@ -24,6 +63,9 @@ async def get_queue_status(
     """
     try:
         status = get_all_queues_status()
+        content_current_task = status.get("content_queue", {}).get("current_task") if status.get("content_queue") else None
+        in_progress_count = 1 if content_current_task else 0
+        status["content_progress"] = _get_content_fetch_progress(in_progress_count=in_progress_count)
         return success_response(data=status)
     except Exception as e:
         logger.error(f"Get queue status error: {str(e)}")
@@ -48,6 +90,9 @@ async def get_content_queue_status(
     """获取内容补抓队列状态"""
     try:
         status = ContentTaskQueue.get_detailed_status()
+        status["content_progress"] = _get_content_fetch_progress(
+            in_progress_count=1 if status.get("current_task") else 0
+        )
         return success_response(data=status)
     except Exception as e:
         logger.error(f"Get content queue status error: {str(e)}")
