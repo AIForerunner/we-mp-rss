@@ -20,6 +20,8 @@ def init_user(_db: Db):
           id=0,
           username=username,
           password_hash=pwd_context.hash(password),
+          role='admin',
+          is_active=True,
           ))
       session.commit()
       print_info(f"初始化用户成功,请使用以下凭据登录：{username}")
