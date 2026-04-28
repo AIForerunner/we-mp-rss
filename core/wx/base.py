@@ -200,6 +200,8 @@ class WxGather:
                 # is_pay_subscribe：是否为付费订阅内容
                 # item_show_type：展示类型（0通常为普通图文，10可能为特定的无图或特殊样式）
                 # has_red_packet_cover：封面是否有红包挂件（0为无）
+                # 处理 show_types 数组字段
+                
                 art={
                     "id":str(data['id']),  # 文章唯一标识ID
                     "mp_id":data['mp_id'],  # 公众号ID
@@ -209,7 +211,7 @@ class WxGather:
                     "content":data.get("content",""),  # 文章正文内容
                     "publish_type":data.get("publish_type",0),  # 发布类型(1=普通发布, 101=群发消息)
                     "art_type":data.get("type",0),  # 展示类型数组(0=图文, 5=视频, 7=音频, 10=贴图)
-                    "show_types":data.get("show_types",0),  # 展示类型数组(0=图文, 5=视频, 7=音频, 10=贴图)
+                    "show_types": data.get("show_types") or data.get("item_show_types"),  # 展示类型数组(JSON格式,如[0],[5],[7],[10])
                     "publish_src":data.get("publish_src",0),  # 发布来源
                     "publish_status":data.get("publish_status","200"),  # 发布状态码
                     "publish_time":data.get("update_time",""),  # 发布/更新时间
