@@ -60,7 +60,7 @@ class Article(ArticleBase):
             'publish_type': self.publish_type,
             'publish_src': self.publish_src,
             'publish_status': self.publish_status,
-            'type': self.type,
+            'art_type': self.art_type,
             'show_types': self.show_types,
             # 状态与类型标识
             'original_check_type': self.original_check_type,
@@ -74,8 +74,8 @@ class Article(ArticleBase):
             'content': self.content,
             'content_html': self.content_html,
             # 系统字段
-            'created_at': self.created_at.isoformat() if self.created_at and hasattr(self.created_at, "isoformat") else self.created_at,
-            'updated_at': self.updated_at.isoformat() if self.updated_at and hasattr(self.updated_at, "isoformat") else self.updated_at,
+            'created_at': self.created_at.isoformat() if self.created_at and hasattr(self.created_at, "isoformat") else self.created_at, #type: ignore
+            'updated_at': self.updated_at.isoformat() if self.updated_at and hasattr(self.updated_at, "isoformat") else self.updated_at, #type: ignore
             'updated_at_millis': self.updated_at_millis,
             'is_export': self.is_export,
             'is_read': self.is_read,

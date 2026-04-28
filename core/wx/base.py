@@ -169,7 +169,7 @@ class WxGather:
             
             # 使用HTTP代理或直连
             proxies = self._get_proxies()
-            r = session.get(url, headers=headers, proxies=proxies)
+            r = session.get(url, headers=headers, proxies=proxies) #type: ignore
             if r.status_code == 200:
                 text = r.text
                 text=self.remove_common_html_elements(text)
@@ -256,8 +256,8 @@ class WxGather:
             url,
             params=params,
             headers=headers,
-            proxies=proxies,    #type : ignore
-            ) 
+            proxies=proxies,   
+            ) #type: ignore
             response.raise_for_status()  # 检查状态码是否为200
             data = response.text  # 解析JSON数据
             msg = json.loads(data)  # 手动解析
@@ -298,7 +298,7 @@ class WxGather:
         _cookies.append({'name':'token','value':self.token})
         if CallBack is not None:
             CallBack(item)
-        self.Wait(tips=f"{item['mps_title']} 处理完成",min=3,max=10)
+        self.Wait(tips=f"{item['mps_title']} 处理完成",min=3,max=10) #type: ignore
         pass
     def Error(self,error:str,code=None):
         self.Over()
