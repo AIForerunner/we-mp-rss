@@ -202,7 +202,7 @@ class WxGather:
                 # has_red_packet_cover：封面是否有红包挂件（0为无）
                 
                 # 处理 publish_info 字段（Text类型，JSON字符串）
-                publish_data=data.get("publish_info",{})
+                publish_data=data.get("publish_info",{}) or {}
                 publish_info_value = publish_data 
                 if publish_info_value is not None:
                     if isinstance(publish_info_value, dict):
@@ -228,7 +228,7 @@ class WxGather:
                     "create_time":data.get("create_time",""),  # 创建时间
                     "original_check_type":data.get("original_check_type",0),  # 原创检测类型
                     "in_profile":data.get("in_profile",0),  # 是否在公众号主页显示
-                    "pre_publish_status":data.get("pre_publish_status",0) or publish_data.get("pre_publish_status",0),  # 预发布状态
+                    "pre_publish_status":data.get("pre_publish_status",0),  # 预发布状态
                     "service_type":data.get("service_type",0) or publish_data.get("service_type",0),  # 服务类型
                     "item_show_type":data.get("item_show_type",0),  # 展示类型标识
                     "copyright_stat":data.get("copyright_stat",0) or publish_data.get("copyright_stat",0),  # 版权/原创状态(0非原创,1原创)
