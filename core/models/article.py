@@ -21,13 +21,13 @@ class ArticleBase(Base):
     publish_src = Column(Integer,index=True)  # 发布来源
     publish_status = Column(Text,index=True)  # 发布状态
     art_type = Column(Integer,index=True)  # 内容类型(1=图文/视频/音频, 9=贴图等)
-    show_types = Column(Text)  # 展示类型数组(JSON格式,如[0],[5],[7],[10])
+    show_type = Column(Text)  # 展示类型(0=图文, 5=视频, 7=音频, 10=贴图)
     # 状态与类型标识
     original_check_type = Column(Integer,index=True)  # 原创检测类型
     in_profile = Column(Integer,index=True)  # 是否在主页展示
     pre_publish_status = Column(Integer,index=True)  # 预发布状态
     service_type = Column(Integer,index=True)  # 服务类型
-    item_show_types = Column(Integer,index=True)  # 展示类型（对应 item_show_type，0通常为普通图文，10可能为特定的无图或特殊样式）
+    item_show_type = Column(Integer,index=True)  # 展示类型（对应 item_show_type，0通常为普通图文，10可能为特定的无图或特殊样式）
     copyright_stat = Column(Integer,index=True)  # 原创状态（0通常表示非原创，1表示原创）
     has_red_packet_cover = Column(Integer,index=True)  # 封面是否有红包挂件（0为无）
     # 系统字段
@@ -60,14 +60,12 @@ class Article(ArticleBase):
             'publish_type': self.publish_type,
             'publish_src': self.publish_src,
             'publish_status': self.publish_status,
-            'art_type': self.art_type,
-            'show_types': self.show_types,
             # 状态与类型标识
             'original_check_type': self.original_check_type,
             'in_profile': self.in_profile,
             'pre_publish_status': self.pre_publish_status,
             'service_type': self.service_type,
-            'item_show_types': self.item_show_types,
+            'item_show_type': self.item_show_type,
             'copyright_stat': self.copyright_stat,
             'has_red_packet_cover': self.has_red_packet_cover,
             # 内容

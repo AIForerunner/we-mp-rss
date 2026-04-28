@@ -153,7 +153,8 @@ class Db:
                 if existing_article is not None:
                     # 当更新时间和状态都相同时，不需要更新
                     if art.status == existing_article.status and existing_article.publish_time==art.publish_time \
-                    and art.status!=DATA_STATUS.DELETED \
+                    and existing_article.show_type==art.show_type \
+                    and existing_article.status!=DATA_STATUS.DELETED \
                     and art.title==existing_article.title: # type: ignore
                         return False
                     if art.content_html:# type: ignore

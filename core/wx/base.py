@@ -210,8 +210,8 @@ class WxGather:
                     "pic_url":data['cover'],  # 封面图片URL
                     "content":data.get("content",""),  # 文章正文内容
                     "publish_type":data.get("publish_type",0),  # 发布类型(1=普通发布, 101=群发消息)
-                    "art_type":data.get("type",0),  # 展示类型数组(0=图文, 5=视频, 7=音频, 10=贴图)
-                    "show_types": data.get("show_types") or data.get("item_show_types"),  # 展示类型数组(JSON格式,如[0],[5],[7],[10])
+                    "art_type":data.get("type",0),  # 展示类型(0=图文, 5=视频, 7=音频, 10=贴图)
+                    "show_type": data.get("show_type") or data.get("item_show_type"),  # 展示类型(0=图文, 5=视频, 7=音频, 10=贴图)
                     "publish_src":data.get("publish_src",0),  # 发布来源
                     "publish_status":data.get("publish_status","200"),  # 发布状态码
                     "publish_time":data.get("update_time",""),  # 发布/更新时间
@@ -220,7 +220,7 @@ class WxGather:
                     "in_profile":data.get("in_profile",0),  # 是否在公众号主页显示
                     "pre_publish_status":data.get("pre_publish_status",0),  # 预发布状态
                     "service_type":data.get("service_type",0),  # 服务类型
-                    "item_show_types":data.get("item_show_types",0),  # 展示类型标识
+                    "item_show_type":data.get("item_show_type",0),  # 展示类型标识
                     "copyright_stat":data.get("copyright_stat",0),  # 版权/原创状态(0非原创,1原创)
                     "has_red_packet_cover":data.get("has_red_packet_cover",0),  # 封面是否有红包挂件
                     "status": DATA_STATUS.DELETED if data.get("is_deleted",False) else DATA_STATUS.ACTIVE,  # 数据状态(已删除/正常)
