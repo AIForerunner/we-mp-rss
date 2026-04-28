@@ -154,7 +154,9 @@ async def add_user(
 
         # 创建新用户
         import json
+        import uuid
         new_user = DBUser(
+            id=str(uuid.uuid4()),
             username=user_data["username"],
             password_hash=pwd_context.hash(user_data["password"]),
             email=user_data.get("email", ""),
