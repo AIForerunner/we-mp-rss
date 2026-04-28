@@ -28,6 +28,7 @@ def init_user(_db: Db):
           print_info(f"用户已存在，已更新为管理员权限：{username}")
       else:
           # 用户不存在，创建新用户
+          import uuid
           session.add(User(
               id=0,
               username=username,
