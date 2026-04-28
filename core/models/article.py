@@ -21,7 +21,8 @@ class ArticleBase(Base):
     publish_src = Column(Integer,index=True)  # 发布来源
     publish_status = Column(Text,index=True)  # 发布状态
     art_type = Column(Integer,index=True)  # 内容类型(1=图文/视频/音频, 9=贴图等)
-    show_type = Column(Text)  # 展示类型(0=图文, 5=视频, 7=音频, 10=贴图)
+    show_type = Column(Integer,index=True)  # 展示类型(0=图文, 5=视频, 7=音频, 10=贴图)
+    publish_info=Column(Text)  # 发布信息（JSON格式，包含文章的详细发布数据，如阅读数、点赞数等）
     # 状态与类型标识
     original_check_type = Column(Integer,index=True)  # 原创检测类型
     in_profile = Column(Integer,index=True)  # 是否在主页展示
@@ -65,9 +66,11 @@ class Article(ArticleBase):
             'in_profile': self.in_profile,
             'pre_publish_status': self.pre_publish_status,
             'service_type': self.service_type,
+            'show_type': self.show_type,
             'item_show_type': self.item_show_type,
             'copyright_stat': self.copyright_stat,
             'has_red_packet_cover': self.has_red_packet_cover,
+            'publish_info': self.publish_info,
             # 内容
             'content': self.content,
             'content_html': self.content_html,

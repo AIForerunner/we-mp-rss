@@ -147,13 +147,13 @@ class Db:
                art.id=f"{str(art.mp_id)}-{art.id}".replace("MP_WXS_","") # type: ignore
             if check_exist:
                 # 检查文章是否已存在
-                existing_article = session.query(Article.id,Article.publish_time,Article.status,Article.description,Article.title).filter(
+                existing_article = session.query(Article.id,Article.publish_time,Article.status,Article.show_type,Article.description,Article.title).filter(
                     (Article.url == art.url) | (Article.id == art.id)
                 ).first()
                 if existing_article is not None:
                     # 当更新时间和状态都相同时，不需要更新
                     if art.status == existing_article.status and existing_article.publish_time==art.publish_time \
-                    and existing_article.show_type==art.show_type \
+                    and existing_article.show_type==art.show_type\
                     and existing_article.status!=DATA_STATUS.DELETED \
                     and art.title==existing_article.title: # type: ignore
                         return False

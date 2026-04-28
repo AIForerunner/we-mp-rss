@@ -224,6 +224,7 @@ class WxGather:
                     "copyright_stat":data.get("copyright_stat",0),  # 版权/原创状态(0非原创,1原创)
                     "has_red_packet_cover":data.get("has_red_packet_cover",0),  # 封面是否有红包挂件
                     "status": DATA_STATUS.DELETED if data.get("is_deleted",False) else DATA_STATUS.ACTIVE,  # 数据状态(已删除/正常)
+                    "publish_info":data.get("publish_info",{}),  # 发布信息（可能包含群发消息等复杂结构）
                 }
                 if 'digest' in data:
                     art['description']=data['digest']
@@ -258,7 +259,7 @@ class WxGather:
             url,
             params=params,
             headers=headers,
-            proxies=proxies,   
+            proxies=proxies,    #type: ingnore
             ) #type: ignore
             response.raise_for_status()  # 检查状态码是否为200
             data = response.text  # 解析JSON数据
@@ -287,7 +288,9 @@ class WxGather:
                 return
             import time
             self.start_time = time.time()  # 记录开始执行时间
-            self.update_mps(mp_id,Feed(
+            self.update_mps(
+                mp_id, #type: ingnore
+                            Feed( 
             sync_time=int(time.time()),
             update_time=int(time.time()),
             ))
