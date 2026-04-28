@@ -4,7 +4,7 @@ from sqlalchemy import Column, Integer, String, DateTime
 from typing import Optional, List
 from .models import Feed, Article
 from .config import cfg
-from core.models.base import Base  
+from core.models.base import Base, DATA_STATUS  
 from core.print import print_warning,print_info,print_error,print_success
 # 声明基类
 # Base = declarative_base()
@@ -153,7 +153,7 @@ class Db:
                 if existing_article is not None:
                     # 当更新时间和状态都相同时，不需要更新
                     if art.status == existing_article.status and existing_article.publish_time==art.publish_time \
-                    and art.status!=Article.STATUS_DELETED \
+                    and art.status!=DATA_STATUS.DELETED \
                     and art.title==existing_article.title: # type: ignore
                         return False
                     if art.content_html:# type: ignore
