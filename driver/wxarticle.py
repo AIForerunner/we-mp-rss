@@ -385,35 +385,15 @@ class WXArticleFetcher:
             文章类型: 0=图文, 5=视频, 7=音频, 10=贴图
         """
         try:
-            # 尝试从页面JavaScript变量获取itemShowType
-            item_show_type = await page.evaluate('() => window.item_show_type')
-            
-            if item_show_type is not None:
-                article_type = int(item_show_type)
-                # 验证是否为有效类型
-                if article_type in [0, 5, 7, 10]:
-                    return article_type
-            
+        
             # 尝试从页面内容中提取
             content = await page.content()
             
-            # 查找 itemShowType 的定义
-            patterns = [
-                r"var\s+itemShowType\s*=\s*window\.a_value_which_never_exists\s*\|\|\s*['\"](\d+)['\"]",
-                r"itemShowType\s*=\s*['\"](\d+)['\"]",
-                r"item_show_type\s*=\s*['\"](\d+)['\"]",
-            ]
-            
-            for pattern in patterns:
-                match = re.search(pattern, content)
-                if match:
-                    article_type = int(match.group(1))
-                    if article_type in [0, 5, 7, 10]:
-                        return article_type
+           
             
             # 根据页面元素判断类型
             # 检查是否有视频播放器
-            has_video = await page.evaluate('() => !!document.querySelector(".video_iframe, #js_video_page_title, [data-vid]")')
+            has_video = await page.evaluate('() => !!document.querySelector(".video_iframe, #js_video_page_title, [data-vid], mp-common-videosnap")')
             if has_video:
                 return 5
             
@@ -427,6 +407,28 @@ class WXArticleFetcher:
             if has_images:
                 return 10
             
+
+            # 尝试从页面JavaScript变量获取itemShowType
+            item_show_type = await page.evaluate('() => window.item_show_type')
+            if item_show_type is not None:
+                article_type = int(item_show_type)
+                # 验证是否为有效类型
+                if article_type in [0, 5, 7, 10]:
+                    return article_type
+
+             # 查找 itemShowType 的定义
+            patterns = [
+                r"var\s+itemShowType\s*=\s*window\.a_value_which_never_exists\s*\|\|\s*['\"](\d+)['\"]",
+                r"itemShowType\s*=\s*['\"](\d+)['\"]",
+                r"item_show_type\s*=\s*['\"](\d+)['\"]",
+            ]
+            
+            for pattern in patterns:
+                match = re.search(pattern, content)
+                if match:
+                    article_type = int(match.group(1))
+                    if article_type in [0, 5, 7, 10]:
+                        return article_type
             # 默认为图文类型
             return 0
             

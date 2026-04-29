@@ -679,7 +679,7 @@ const columns = computed(() => {
       width: 60,
       align: 'center',
       render: ({ record }) => {
-        const showType = record.item_show_type ?? 0
+        const showType = (record.show_type||record.item_show_type) ?? 0
         return h('a-tag', {
           color: itemShowTypeColorMap[showType] || 'gray',
           size: 'small'
