@@ -384,36 +384,13 @@ async def batch_update_mps(
                     "wait_seconds": sync_interval - time_span
                 })
         
-        # 后台任务：逐个拉取，保持间隔防止反爬
-        def _batch_update_task():
-            from core.wx import WxGather
-            for idx, mp in enumerate(to_update):
-                try:
-                    wx = WxGather().Model()
-                    wx.get_Articles(
-                        mp.faker_id,
-                        Mps_id=mp.id,
-                        Mps_title=mp.mp_name,
-                        CallBack=UpdateArticle,
-                        start_page=0,
-                        MaxPage=1
-                    )
-                    # 更新 update_time
-                    mp_record = session.query(Feed).filter(Feed.id == mp.id).first()
-                    if mp_record:
-                        mp_record.update_time = int(time.time())
-                        session.commit()
-                    
-                    # 公众号之间保持间隔，避免频繁调用微信接口
-                    if idx < len(to_update) - 1:
-                        time.sleep(2)
-                except Exception as e:
-                    print(f"批量拉取公众号 {mp.mp_name} 失败: {str(e)}")
-            session.close()
-        
-        # 启动后台线程
+        # 将每个公众号作为独立任务推入串行队列，与定时任务共享同一队列，避免并发和重复请求
         if to_update:
-            threading.Thread(target=_batch_update_task, daemon=True).start()
+            from core.queue import TaskQueue
+            from jobs.mps import do_job
+            for mp in to_update:
+                TaskQueue.add_task(do_job, mp, None, False, task_name=mp.mp_name)
+        session.close()
         
         return success_response({
             "total": len(mps),

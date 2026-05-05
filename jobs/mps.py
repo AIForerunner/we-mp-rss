@@ -84,7 +84,7 @@ def do_job(mp=None,task:MessageTask=None,isTest=False):
                 from jobs.webhook import MessageWebHook
                 tms=MessageWebHook(task=task,feed=mp,articles=mock_articles)
                 web_hook(tms, is_test=isTest)
-                print_success(f"任务({task.id})[{mp.mp_name}]执行成功,{count}成功条数")
+                print_success(f"任务({task.id if task else 'batch'})[{mp.mp_name}]执行成功,{count}成功条数")
                 
                 # 采集成功，清除该公众号的环境异常记录
                 if not isTest and success and count > 0:
