@@ -8,9 +8,8 @@ import sys
 import sqlite3
 import time
 import threading
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 from urllib import error, request
-from queue import Queue
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
@@ -174,6 +173,12 @@ def build_payload(row: sqlite3.Row, workflow_id: str, app_id: str) -> Dict[str, 
     html_content = row["content_html"] or row["content"] or ""
     content = format_content(html_content, "markdown")
     account = row["mp_name"] or row["mp_id"] or ""
+    publish_time_sec = int(row["publish_time"] or 0)
+    create_time = (
+        dt.datetime.fromtimestamp(publish_time_sec).strftime("%Y-%m-%d %H:%M:%S")
+        if publish_time_sec > 0
+        else ""
+    )
     return {
         "workflow_id": workflow_id,
         "app_id": app_id,
@@ -183,7 +188,7 @@ def build_payload(row: sqlite3.Row, workflow_id: str, app_id: str) -> Dict[str, 
             "content": content,
             "account": account,
             "follow_avatar": row["mp_cover"] or "",
-            "create_time": str(row["publish_time"] or ""),
+            "create_time": create_time,
         },
     }
 
@@ -201,66 +206,9 @@ def send_payload(
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = request.Request(api_url, data=data, headers=headers, method="POST")
     with request.urlopen(req, timeout=timeout) as resp:
-        body = resp.read().decode("utf-8", errors="replace")
         return {
             "status": resp.status,
-            "body": body,
         }
-
-def _evaluate_response(status: int, body: str) -> Tuple[bool, str]:
-    if not (200 <= status < 300):
-        return False, f"HTTP {status}: {body[:300]}"
-
-    content = (body or "").strip()
-    if not content:
-        return True, ""
-
-    # 1) Non-stream JSON response, usually includes code/msg.
-    try:
-        payload = json.loads(content)
-        if isinstance(payload, dict):
-            code = payload.get("code")
-            if code is not None and code != 0:
-                return False, f"code={code}, msg={payload.get('msg', '')}"
-            event = str(payload.get("event", "")).lower()
-            if event == "error":
-                return False, f"event=Error, data={payload.get('data', '')}"
-        return True, ""
-    except Exception:
-        pass
-
-    # 2) Stream response (SSE), check for event/data pairs.
-    current_event = ""
-    saw_error = ""
-    saw_any_data = False
-    for line in content.splitlines():
-        stripped = line.strip()
-        if stripped.lower().startswith("event:"):
-            current_event = stripped.split(":", 1)[1].strip()
-            if current_event.lower() == "error":
-                saw_error = "event: Error"
-        elif stripped.lower().startswith("data:"):
-            saw_any_data = True
-            data_raw = stripped.split(":", 1)[1].strip()
-            if current_event.lower() == "error":
-                try:
-                    err = json.loads(data_raw)
-                    msg = err.get("error_message") or err.get("msg") or data_raw
-                except Exception:
-                    msg = data_raw
-                return False, f"event=Error, {msg[:300]}"
-
-    if saw_error:
-        return False, saw_error
-
-    # If stream has data and no explicit error event, treat as success.
-    if saw_any_data:
-        return True, ""
-
-    # Fallback for unknown but non-empty body without explicit error markers.
-    if "event: Error" in content or '"event":"Error"' in content:
-        return False, content[:300]
-    return True, ""
 
 
 def mark_exported(conn: sqlite3.Connection, article_id: str) -> None:
@@ -269,54 +217,32 @@ def mark_exported(conn: sqlite3.Connection, article_id: str) -> None:
 
 def send_article_async(
     idx: int,
+    total: int,
     row: sqlite3.Row,
     workflow_id: str,
     app_id: str,
     api_url: str,
     api_token: str,
     timeout: int,
-    retry: int,
     db_path: str,
     mark_exported: bool,
-    total: int,
 ) -> None:
-    """Send a single article in a thread."""
     payload = build_payload(row, workflow_id, app_id)
-    
-    attempt = 0
-    sent = False
-    last_error = ""
-    
-    while attempt <= retry and not sent:
-        attempt += 1
-        try:
-            result = send_payload(api_url, api_token, payload, timeout)
-            status = result["status"]
-            ok_resp, reason = _evaluate_response(status, result.get("body", ""))
-            if ok_resp:
-                sent = True
-                break
-            last_error = reason
-        except error.HTTPError as e:
-            body = e.read().decode("utf-8", errors="replace")
-            last_error = f"HTTPError {e.code}: {body[:300]}"
-        except Exception as e:  # noqa: BLE001
-            last_error = str(e)
-        
-        if not sent and attempt <= retry:
-            time.sleep(1.5)
-    
-    if sent:
+    try:
+        send_payload(api_url, api_token, payload, timeout)
         if mark_exported:
             conn = sqlite3.connect(db_path)
             conn.execute("UPDATE articles SET is_export = 1 WHERE id = ?", (row["id"],))
             conn.commit()
             conn.close()
         with print_lock:
-            print(f"[OK] {idx}/{total} id={row['id']} title={row['title']}", flush=True)
-    else:
+            print(f"[SENT] {idx}/{total} id={row['id']} title={row['title']}", flush=True)
+    except error.HTTPError as e:
         with print_lock:
-            print(f"[FAIL] {idx}/{total} id={row['id']} title={row['title']} reason={last_error}", flush=True)
+            print(f"[FAIL] {idx}/{total} id={row['id']} title={row['title']} reason=HTTPError {e.code}", flush=True)
+    except Exception as e:  # noqa: BLE001
+        with print_lock:
+            print(f"[FAIL] {idx}/{total} id={row['id']} title={row['title']} reason={e}", flush=True)
 
 
 def main() -> int:
@@ -381,22 +307,24 @@ def main() -> int:
                 print(f"[DRY RUN] {idx}/{len(rows)} id={row['id']} title={row['title']}", flush=True)
             time.sleep(1)
             continue
-        
-        # Launch async thread for this article
+
+        with print_lock:
+            dispatch_at = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            print(f"[DISPATCH] {idx}/{len(rows)} at={dispatch_at} id={row['id']} title={row['title']}", flush=True)
+
         thread = threading.Thread(
             target=send_article_async,
             args=(
                 idx,
+                len(rows),
                 row,
                 args.workflow_id,
                 args.app_id,
                 args.api_url,
                 args.api_token,
                 args.timeout,
-                args.retry,
                 args.db,
                 args.mark_exported,
-                len(rows),
             ),
             daemon=False,
         )
@@ -406,11 +334,10 @@ def main() -> int:
         # Sleep 2 seconds before sending next article
         if idx < len(rows):
             time.sleep(2)
-    
-    # Wait for all threads to complete
+
     for thread in threads:
         thread.join()
-    
+
     conn.close()
 
     print(f"Done. total={len(rows)}", flush=True)
