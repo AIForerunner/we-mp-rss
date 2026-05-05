@@ -4,7 +4,7 @@ from sqlalchemy import Column, Integer, String, DateTime
 from typing import Optional, List
 from .models import Feed, Article
 from .config import cfg
-from core.models.base import Base  
+from core.models.base import Base, DATA_STATUS  
 from core.print import print_warning,print_info,print_error,print_success
 # 声明基类
 # Base = declarative_base()
@@ -147,20 +147,22 @@ class Db:
                art.id=f"{str(art.mp_id)}-{art.id}".replace("MP_WXS_","") # type: ignore
             if check_exist:
                 # 检查文章是否已存在
-                existing_article = session.query(Article.id,Article.publish_time,Article.status,Article.description,Article.title).filter(
+                existing_article = session.query(Article.id,Article.publish_time,Article.status,Article.item_show_type,Article.description,Article.title).filter(
                     (Article.url == art.url) | (Article.id == art.id)
                 ).first()
                 if existing_article is not None:
                     # 当更新时间和状态都相同时，不需要更新
                     if art.status == existing_article.status and existing_article.publish_time==art.publish_time \
-                    and art.status!=Article.STATUS_DELETED \
+                    and existing_article.item_show_type==art.item_show_type\
+                    and existing_article.status!=DATA_STATUS.DELETED \
                     and art.title==existing_article.title: # type: ignore
                         return False
-                    if art.content_html:# type: ignore
+                    
+                    if art.content is None:
                         from tools.fix import fix_html
-                        art.content_html = fix_html(art.content_html) # type: ignore
-                    # 设置 has_content 字段
-                    art.has_content = 1 if (art.content and art.content.strip()) else 0 # type: ignore
+                        art.content_html = fix_html(art.content) # type: ignore
+                        # 设置 has_content 字段
+                        art.has_content = 1 if (art.content and art.content.strip()) else 0 # type: ignore
                     session.merge(art)  # 使用 merge 来更新现有记录
                     session.commit()
                     print_warning(f"Article already exists: {art.id}")
@@ -182,7 +184,7 @@ class Db:
             art.content = sanitize_utf8(art.content) if art.content else None # type: ignore
             art.content_html = sanitize_utf8(art.content_html) if art.content_html else None # type: ignore
 
-            if art.content_html is None:
+            if art.content is not None:
                 from tools.fix import fix_html
                 art.content_html = fix_html(art.content) # type: ignore
 

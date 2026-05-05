@@ -94,6 +94,7 @@ class MpsWeb(WxGather):
                                             super().Wait(3,10,tips=f"{item['title']} 采集完成")
                                     else:
                                         item["content"] = ""
+                                    item["publish_info"] = publish_info.get("publish_info","")
                                     item["id"] = item["aid"]
                                     item["mp_id"] = Mps_id
                                     if CallBack is not None:
