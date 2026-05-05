@@ -90,6 +90,9 @@ def sync_article_content(
         if getattr(article, "has_content", 0) == 0:
             print_info(f"article {article.id} already has content, skipping fetch")
             article.has_content = 1
+            # 如果之前被锁定为 FETCHING，这里要回收状态，避免进度统计卡住。
+            if getattr(article, "status", None) == DATA_STATUS.FETCHING:
+                article.status = DATA_STATUS.ACTIVE
             session.commit()
             session.refresh(article)
             return True, "cached"

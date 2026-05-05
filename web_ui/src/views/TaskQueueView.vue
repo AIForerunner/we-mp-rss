@@ -371,7 +371,7 @@ const connectWebSocket = () => {
               ...message.data.content_queue,
               content_progress:
                 message.data.content_queue.content_progress ||
-                contentQueueStatus.value.content_progress ||
+                message.data.content_progress ||
                 emptyContentProgress,
             }
             contentHistory.value = message.data.content_queue.recent_history || []

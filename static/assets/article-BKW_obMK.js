@@ -1,0 +1,1 @@
+import{v as e}from"./http-DRpzA22s.js";export{e as getArticles};

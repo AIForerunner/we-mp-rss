@@ -1,1 +1,0 @@
-import{v as e}from"./http-CZuOaVRd.js";export{e as getArticles};

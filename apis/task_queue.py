@@ -58,7 +58,8 @@ def _get_content_fetch_progress(in_progress_count: int = 0):
         ).scalar() or 0
         fetching = session.query(func.count(Article.id)).filter(
             *base_filter,
-            Article.status == DATA_STATUS.FETCHING
+            Article.status == DATA_STATUS.FETCHING,
+            or_(Article.has_content == 0, Article.has_content.is_(None))
         ).scalar() or 0
 
         return {
@@ -70,6 +71,18 @@ def _get_content_fetch_progress(in_progress_count: int = 0):
         }
     finally:
         session.close()
+
+
+def _enrich_status_with_content_progress(status: dict | None):
+    """给队列状态补充 content_progress，避免前端展示卡住旧值。"""
+    status = status or {}
+    content_current_task = status.get("content_queue", {}).get("current_task") if status.get("content_queue") else None
+    in_progress_count = 1 if content_current_task else 0
+    progress = _get_content_fetch_progress(in_progress_count=in_progress_count)
+    status["content_progress"] = progress
+    if status.get("content_queue") is not None:
+        status["content_queue"]["content_progress"] = progress
+    return status
 
 @router.get("/status", summary="获取任务队列状态")
 async def get_queue_status(
@@ -83,10 +96,7 @@ async def get_queue_status(
         - content_queue: 内容补抓队列状态
     """
     try:
-        status = get_all_queues_status()
-        content_current_task = status.get("content_queue", {}).get("current_task") if status.get("content_queue") else None
-        in_progress_count = 1 if content_current_task else 0
-        status["content_progress"] = _get_content_fetch_progress(in_progress_count=in_progress_count)
+        status = _enrich_status_with_content_progress(get_all_queues_status())
         return success_response(data=status)
     except Exception as e:
         logger.error(f"Get queue status error: {str(e)}")
@@ -321,7 +331,7 @@ async def queue_websocket(websocket: WebSocket, token: Optional[str] = None):
     
     try:
         # 立即发送当前状态（所有队列）
-        status = get_all_queues_status()
+        status = _enrich_status_with_content_progress(get_all_queues_status())
         await websocket.send_json({
             "type": "queue_status",
             "data": status
@@ -330,7 +340,7 @@ async def queue_websocket(websocket: WebSocket, token: Optional[str] = None):
         # 保持连接，定期推送状态（每10秒作为兜底，主要依靠实时推送）
         while True:
             await asyncio.sleep(10)
-            status = get_all_queues_status()
+            status = _enrich_status_with_content_progress(get_all_queues_status())
             await websocket.send_json({
                 "type": "queue_status",
                 "data": status
@@ -345,7 +355,7 @@ async def queue_websocket(websocket: WebSocket, token: Optional[str] = None):
 
 async def broadcast_queue_status():
     """广播队列状态到所有 WebSocket 连接"""
-    status = get_all_queues_status()
+    status = _enrich_status_with_content_progress(get_all_queues_status())
     await ws_manager.broadcast({
         "type": "queue_status",
         "data": status
@@ -354,7 +364,7 @@ async def broadcast_queue_status():
 
 def broadcast_queue_status_sync():
     """同步版本：广播队列状态"""
-    status = get_all_queues_status()
+    status = _enrich_status_with_content_progress(get_all_queues_status())
     ws_manager.broadcast_sync({
         "type": "queue_status",
         "data": status
