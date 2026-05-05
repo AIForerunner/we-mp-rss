@@ -100,7 +100,21 @@ export const UpdateMps = (mp_id: string,params: { start_page?: number; end_page?
 
 // 全量拉取所有公众号第一页
 export const batchUpdateMps = () => {
-  return http.get<{ total: number; to_update: number; skipped: number; skipped_list: Array<{ mp_id: string; mp_name: string; wait_seconds: number; }>; message: string; }>('/wx/mps/batch-update');
+  return http.get<{
+    total: number;
+    to_update: number;
+    already_queued: number;
+    skipped: number;
+    skipped_today: number;
+    skipped_cooldown: number;
+    skipped_list: Array<{
+      mp_id: string;
+      mp_name: string;
+      reason?: 'today_synced' | 'cooldown';
+      wait_seconds?: number;
+    }>;
+    message: string;
+  }>('/wx/mps/batch-update');
 }
 
 // 更新订阅公众号信息

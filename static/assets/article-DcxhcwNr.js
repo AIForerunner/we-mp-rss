@@ -1,1 +1,0 @@
-import{f as e}from"./http-Uf3-S24d.js";export{e as getArticles};

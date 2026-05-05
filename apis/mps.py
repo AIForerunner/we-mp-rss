@@ -346,9 +346,9 @@ async def batch_update_mps(
     """
     全量拉取所有启用的公众号的第一页。
     具有以下保护机制：
-    1. 每个公众号单独的 sync_interval 限制（默认 60 秒）
-    2. 后台线程异步执行，避免阻塞
-    3. 跳过最近被更新过的公众号
+    1. 当天已经拉取过的公众号直接跳过
+    2. 每个公众号单独的 sync_interval 限制（默认 60 秒）
+    3. 通过任务队列串行执行，避免并发请求
     """
     session = DB.get_session()
     try:
@@ -368,36 +368,70 @@ async def batch_update_mps(
         # 统计需要更新的公众号
         to_update = []
         skipped = []
+        skipped_today = []
+        skipped_cooldown = []
+        today = datetime.now().date()
         
         for mp in mps:
             if mp.update_time is None:
                 mp.update_time = current_time - sync_interval
                 session.commit()
+
+            # 当天已拉取过则直接跳过
+            if mp.sync_time:
+                try:
+                    last_sync_date = datetime.fromtimestamp(int(mp.sync_time)).date()
+                    if last_sync_date == today:
+                        skip_item = {
+                            "mp_id": mp.id,
+                            "mp_name": mp.mp_name,
+                            "reason": "today_synced"
+                        }
+                        skipped.append(skip_item)
+                        skipped_today.append(skip_item)
+                        continue
+                except Exception:
+                    # 时间格式异常时，降级到原有冷却逻辑
+                    pass
             
             time_span = current_time - int(mp.update_time)
             if time_span >= sync_interval:
                 to_update.append(mp)
             else:
-                skipped.append({
+                skip_item = {
                     "mp_id": mp.id,
                     "mp_name": mp.mp_name,
+                    "reason": "cooldown",
                     "wait_seconds": sync_interval - time_span
-                })
+                }
+                skipped.append(skip_item)
+                skipped_cooldown.append(skip_item)
         
         # 将每个公众号作为独立任务推入串行队列，与定时任务共享同一队列，避免并发和重复请求
+        enqueued_count = 0
+        already_queued = 0
         if to_update:
             from core.queue import TaskQueue
             from jobs.mps import do_job
             for mp in to_update:
-                TaskQueue.add_task(do_job, mp, None, False, task_name=mp.mp_name)
+                # 使用稳定且唯一的任务名，便于队列层做去重（避免重复点击造成重复拉取）
+                task_label = f"{mp.mp_name} [{mp.id}]"
+                added = TaskQueue.add_task(do_job, mp, None, False, task_name=task_label)
+                if added:
+                    enqueued_count += 1
+                else:
+                    already_queued += 1
         session.close()
         
         return success_response({
             "total": len(mps),
-            "to_update": len(to_update),
+            "to_update": enqueued_count,
+            "already_queued": already_queued,
             "skipped": len(skipped),
+            "skipped_today": len(skipped_today),
+            "skipped_cooldown": len(skipped_cooldown),
             "skipped_list": skipped,
-            "message": f"已启动全量拉取，将更新 {len(to_update)} 个公众号（{len(skipped)} 个正在冷却中）"
+            "message": f"已启动全量拉取，将更新 {enqueued_count} 个公众号（队列中已存在 {already_queued} 个，今日已更新跳过 {len(skipped_today)} 个，冷却中 {len(skipped_cooldown)} 个）"
         })
     except Exception as e:
         print(f"批量更新公众号文章错误: {str(e)}")

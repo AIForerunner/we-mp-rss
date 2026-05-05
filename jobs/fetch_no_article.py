@@ -1,3 +1,5 @@
+import time
+
 from core.models.article import Article,DATA_STATUS
 import core.db as db
 from core.config import cfg
@@ -26,11 +28,28 @@ def fetch_articles_without_content():
         batch_size = _safe_int_cfg("gather.content_auto_batch_size", 50, 1, 200)
         wait_min = _safe_int_cfg("gather.content_auto_wait_min", 5, 0, 60)
         wait_max = _safe_int_cfg("gather.content_auto_wait_max", 10, 0, 120)
+        fetching_timeout_min = _safe_int_cfg(
+            "gather.content_fetching_timeout_minutes", 30, 1, 1440
+        )
         if wait_min > wait_max:
             wait_min, wait_max = wait_max, wait_min
 
-        # 查询 content 为空且未被锁定的文章（兼容历史数据 has_content 为 NULL）
+        # 回收超时的 FETCHING 锁，避免异常退出导致任务永久卡住。
         from sqlalchemy import or_
+        timeout_threshold_ms = int(time.time() * 1000) - fetching_timeout_min * 60 * 1000
+        released_count = session.query(Article).filter(
+            or_(Article.has_content == 0, Article.has_content.is_(None)),
+            Article.status == DATA_STATUS.FETCHING,
+            or_(Article.updated_at_millis.is_(None), Article.updated_at_millis < timeout_threshold_ms)
+        ).update(
+            {Article.status: DATA_STATUS.ACTIVE},
+            synchronize_session=False
+        )
+        if released_count:
+            session.commit()
+            print_warning(f"回收超时 FETCHING 文章 {released_count} 条（超时 {fetching_timeout_min} 分钟）")
+
+        # 查询 content 为空且未被锁定的文章（兼容历史数据 has_content 为 NULL）
         articles = session.query(Article).filter(
             or_(Article.has_content == 0, Article.has_content.is_(None)),
             Article.status != DATA_STATUS.FETCHING,  # 排除正在获取的文章

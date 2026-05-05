@@ -35,6 +35,16 @@ def _broadcast_queue_status():
     try:
         from core.ws_manager import ws_manager
         status = get_all_queues_status()
+        # 补充 content_progress，与 HTTP /status 接口保持一致
+        try:
+            from apis.task_queue import _get_content_fetch_progress
+            content_queue = status.get("content_queue") or {}
+            in_progress_count = 1 if content_queue.get("current_task") else 0
+            status["content_progress"] = _get_content_fetch_progress(in_progress_count=in_progress_count)
+            if status.get("content_queue") is not None:
+                status["content_queue"]["content_progress"] = status["content_progress"]
+        except Exception:
+            pass
         ws_manager.broadcast_sync({
             "type": "queue_status",
             "data": status
@@ -345,6 +355,11 @@ class TaskQueueManager:
         with self._thread_lock:
             # 获取任务显示名称
             display_name = task_name or getattr(task, '__name__', str(task))
+
+            # 检查任务是否正在执行中（根据 task_name 去重）
+            if self._current_task and self._current_task.task_name == display_name:
+                print_warning(f"{self.tag}任务正在执行中，跳过 [{display_name}]")
+                return False
             
             # 检查任务是否已在队列中（根据 task_name 去重）
             for pending_item in self._pending_items:
@@ -539,28 +554,35 @@ class TaskQueueManager:
     
     def get_detailed_status(self) -> dict:
         """
-        获取队列的详细状态信息（从 Redis 读取，支持多进程）
+        获取队列的详细状态信息（优先 Redis，不可用时回退内存）
         
         返回:
             dict: 包含详细队列信息的字典
         """
-        # 从 Redis 获取数据
-        pending_list = self._get_pending_from_redis()
-        history_list = self._get_history_from_redis(20)
-        history_count = self._get_history_count_from_redis()
-        current_task = self._get_current_task_from_redis()
-        
-        # 获取运行状态
         redis_client = _get_redis()
-        is_running = self._is_running
+        
         if redis_client:
+            # Redis 可用：从 Redis 读取
+            pending_list = self._get_pending_from_redis()
+            history_list = self._get_history_from_redis(20)
+            history_count = self._get_history_count_from_redis()
+            current_task = self._get_current_task_from_redis()
+            is_running = self._is_running
             try:
                 status = redis_client.hgetall(self._redis_keys['status'])
                 if status and 'is_running' in status:
                     is_running = status['is_running'] == 'true'
             except Exception:
                 pass
-        
+        else:
+            # Redis 不可用：回退到内存数据
+            with self._thread_lock:
+                pending_list = [item.to_dict() for item in self._pending_items]
+                history_list = [r.to_dict() for r in self._history[-20:]]
+                history_count = len(self._history)
+                current_task = self._current_task.to_dict() if self._current_task else None
+                is_running = self._is_running
+
         return {
             'tag': self.tag,
             'is_running': is_running,

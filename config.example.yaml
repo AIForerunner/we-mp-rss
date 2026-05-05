@@ -128,8 +128,8 @@ gather:
   model: ${GATHER.MODEL:-web}
   #是否自动检查未采集文章内容，默认False
   content_auto_check: ${GATHER.CONTENT_AUTO_CHECK:-True}
-  #自动检查未采集文章内容的时间间隔 单位秒默认59分钟 允许值 1-59分钟之间 默认59分钟
-  content_auto_interval: ${GATHER.CONTENT_AUTO_INTERVAL:-59}
+  #自动检查未采集文章内容的时间间隔 单位秒默认59分钟 允许值 1-59分钟之间 默认10分钟
+  content_auto_interval: ${GATHER.CONTENT_AUTO_INTERVAL:-10}
   #每轮自动补抓数量，默认50，建议范围10-100
   content_auto_batch_size: ${GATHER.CONTENT_AUTO_BATCH_SIZE:-50}
   #单篇补抓后最小等待秒数，默认5秒

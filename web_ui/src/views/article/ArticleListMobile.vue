@@ -7,6 +7,10 @@
            :show-back="false">
           <template #extra>
             <a-space>
+              <a-button @click="handleBatchUpdate" :loading="batchUpdating">
+                <template #icon><icon-refresh /></template>
+                全量拉取
+              </a-button>
               <a-button type="primary" @click="showMpList">
                 <template #icon><icon-eye /></template>
                 阅读
@@ -184,8 +188,8 @@ import { Avatar } from '@/utils/constants'
 import { ref, onMounted, computed, watch } from 'vue'
 import { IconCheck, IconClose, IconStop, IconPlayArrow, IconCopy, IconStar, IconStarFill } from '@arco-design/web-vue/es/icon'
 import { getArticles, getArticleDetail,getPrevArticle,getNextArticle,toggleArticleReadStatus,toggleArticleFavoriteStatus } from '@/api/article'
-import { getSubscriptions, toggleMpStatus as toggleMpStatusApi } from '@/api/subscription'
-import { Message } from '@arco-design/web-vue'
+import { getSubscriptions, toggleMpStatus as toggleMpStatusApi, batchUpdateMps } from '@/api/subscription'
+import { Message, Modal } from '@arco-design/web-vue'
 import { ProxyImage } from '@/utils/constants'
 const articles = ref([])
 const loading = ref(false)
@@ -196,6 +200,7 @@ const searchText = ref('')
 const mpListVisible = ref(false)
 const mpFilterType = ref('all') // 'active' | 'disabled' | 'all'
 const mpSearchText = ref('')
+const batchUpdating = ref(false)
 
 // 公众号列表分页状态
 const mpPagination = ref({
@@ -223,6 +228,28 @@ const activeFeed = ref({
 
 const showMpList = () => {
   mpListVisible.value = true
+}
+
+const handleBatchUpdate = () => {
+  Modal.confirm({
+    title: '全量拉取',
+    content: '将拉取所有启用公众号的第一页。最近更新过的公众号会被跳过（频率限制保护）。',
+    okText: '开始',
+    cancelText: '取消',
+    onOk: async () => {
+      batchUpdating.value = true
+      try {
+        const res = await batchUpdateMps()
+        Message.success(res?.message || '已启动全量拉取')
+        await fetchMps(false)
+        await fetchArticles(false)
+      } catch (error: any) {
+        Message.error(error?.message || '全量拉取失败')
+      } finally {
+        batchUpdating.value = false
+      }
+    }
+  })
 }
 
 const handleMpSelect = () => {

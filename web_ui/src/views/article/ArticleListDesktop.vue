@@ -1111,18 +1111,25 @@ const handleBatchUpdate = () => {
       try {
         const res = await batchUpdateMps()
         if (res) {
-          const { skipped, skipped_list, message } = res
+          const { skipped, skipped_list, message, skipped_today = 0, skipped_cooldown = 0 } = res
           let detail = `${message}\n\n`
           if (skipped > 0) {
-            detail += `⏳ 等待冷却中的公众号 (${skipped} 个):\n`
+            detail += `⏭️ 跳过公众号 (${skipped} 个，今日已更新 ${skipped_today} / 冷却中 ${skipped_cooldown}):\n`
             skipped_list.slice(0, 5).forEach((item: any) => {
-              detail += `  • ${item.mp_name}: 还需等待 ${item.wait_seconds} 秒\n`
+              if (item.reason === 'today_synced') {
+                detail += `  • ${item.mp_name}: 今日已更新\n`
+              } else {
+                detail += `  • ${item.mp_name}: 冷却中，还需等待 ${item.wait_seconds || 0} 秒\n`
+              }
             })
             if (skipped_list.length > 5) {
               detail += `  ... 以及其他 ${skipped_list.length - 5} 个\n`
             }
           }
-          Message.success(detail, { duration: 5 })
+          Message.success({
+            content: detail,
+            duration: 5000
+          })
           // 稍后刷新一下列表
           setTimeout(() => {
             fetchMpList()
